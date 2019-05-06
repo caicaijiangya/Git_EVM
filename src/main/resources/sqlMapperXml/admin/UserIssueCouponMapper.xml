@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.UserIssueCouponMapper">
+	<!-- 查询人工发放列表 -->
+	<select id="selectDataGrid" resultType="UserIssueCoupon" parameterType="UserIssueCoupon">
+        select
+		uic.`ID` `id`,
+		c.`COUPON_NO` `couponNo`,
+		c.`TITLE` `title`,
+		wu.`NICK_NAME` `nickName`,
+		wu.`USER_NAME` `userName`,
+		wu.`MOBILE_NO` `mobileNo`,
+		CASE wu.`USER_TYPE` 
+		WHEN 1 THEN '店主' 
+		WHEN 2 THEN '店长' 
+		WHEN 3 THEN '店员' 
+		WHEN 4 THEN '消费者' 
+		END `userType`,
+		uic.`SUCCESS_NUM` `successNum`,
+		uic.`ERROR_NUM` `errorNum`,
+		uic.`USER_NUM` `userNum`,
+		u.`NAME` `name`,
+		s.`STORE_NAME` `storeName`,
+		IF((select count(o1.`ID`) from t_evm_order o1 where o1.`OPEN_ID` = uic.`OPEN_ID` ) &lt;= 0,'新客户','老客户') `newOld`,
+		uic.`CREATED_TIME` `createdTime`
+		from t_evm_user_issue_coupon uic 
+		left join t_evm_coupon c on c.`ID` = uic.`COUPON_ID` 
+		left join t_evm_wx_user wu on wu.`OPEN_ID` = uic.`OPEN_ID`
+		left join t_evm_store s on s.`ID` = wu.`STORE_ID` 
+		left join t_evm_user u on u.`ID` = uic.`USER_ID` 
+		where uic.`IS_DEL` = 0
+		<if test="title !=null and title !=''">
+        	and (c.`TITLE` like CONCAT('%',#{title},'%')
+        	or wu.`USER_NAME` like CONCAT('%',#{title},'%')
+        	or wu.`NICK_NAME` like CONCAT('%',#{title},'%'))
+        </if>
+        <if test="type != null and type == 0">
+        	and uic.`SUCCESS_NUM` &gt; 0
+        </if>
+        <if test="type != null and type == 1">
+        	and uic.`ERROR_NUM` &gt; 0
+        </if>
+        <if test="createdTime != null">
+        	and uic.`CREATED_TIME` like CONCAT('%',#{createdTime},'%')
+        </if>
+		ORDER BY uic.`CREATED_TIME` DESC  
+	</select>
+	<!-- 查询用户列表 -->
+	<select id="selectUserDataGrid" resultType="WxUserInfo" parameterType="WxUserInfo">
+		SELECT 
+			u.id,
+			s.store_name storeName,
+			u.open_id openId,
+			u.mobile_no mobileNo,
+			u.user_name userName,
+			u.nick_name nickName,
+			u.head_img_url headImgUrl,
+			u.`CODE` `code`,
+			u.money,u.INTEGRAL,u.CON_INTEGRAL,u.IS_INTEGRAL,
+			CONCAT(u.country,' ',u.province,' ',u.city) country,
+			u.sex,
+			u.USER_TYPE userType,
+			u.union_id unionId,
+			u.is_auth isAuth,
+			u.CREATED_TIME createdTime,
+			u.IS_DEL isDel,
+			u.note
+		FROM t_evm_wx_user u
+		LEFT JOIN t_evm_store s ON s.id = u.store_id		
+		WHERE u.is_del = 0 
+		<if test="title !=null and title !=''">
+        	and (u.`OPEN_ID` like CONCAT('%',#{title},'%')
+        	or u.`USER_NAME` like CONCAT('%',#{title},'%')
+        	or u.`NICK_NAME` like CONCAT('%',#{title},'%'))
+        </if>
+        <if test="storeId != null">
+        	and u.`STORE_ID` = #{storeId}
+        </if>
+        <if test="type  == 0">
+        	and (u.`MOBILE_NO` is null or u.`MOBILE_NO` = '') and u.`IS_AUTH` = 0 
+        </if>
+        <if test="type  == 1">
+        	and (u.`MOBILE_NO` is null or u.`MOBILE_NO` = '') and u.`IS_AUTH` = 1 
+        </if>
+        <if test="type  == 2">
+        	and u.`MOBILE_NO` is not null and u.`MOBILE_NO` != ''
+        </if>
+	</select>
+	<!-- 查询用户列表 -->
+	<select id="selectUserOpenId" resultType="String" parameterType="WxUserInfo">
+		SELECT 
+			u.open_id openId 
+		FROM t_evm_wx_user u
+		LEFT JOIN t_evm_store s ON s.id = u.store_id		
+		WHERE u.is_del = 0 
+		<if test="title !=null and title !=''">
+        	and (u.`OPEN_ID` like CONCAT('%',#{title},'%')
+        	or u.`USER_NAME` like CONCAT('%',#{title},'%')
+        	or u.`NICK_NAME` like CONCAT('%',#{title},'%'))
+        </if>
+        <if test="storeId != null">
+        	and u.`STORE_ID` = #{storeId}
+        </if>
+        <if test="type  == 0">
+        	and (u.`MOBILE_NO` is null or u.`MOBILE_NO` = '') and u.`IS_AUTH` = 0 
+        </if>
+        <if test="type  == 1">
+        	and (u.`MOBILE_NO` is null or u.`MOBILE_NO` = '') and u.`IS_AUTH` = 1 
+        </if>
+        <if test="type  == 2">
+        	and u.`MOBILE_NO` is not null and u.`MOBILE_NO` != ''
+        </if>
+	</select>
+	<!-- 添加人工发券记录 -->
+	<insert id="insertUserIssueCoupon" parameterType="UserIssueCoupon">
+		insert into t_evm_user_issue_coupon 
+		(`OPEN_ID`,`COUPON_ID`,`USER_NUM`,`SUCCESS_NUM`,`ERROR_NUM`,`USER_ID`) 
+		values 
+		(#{openId},#{couponId},#{userNum},#{successNum},#{errorNum},#{userId})
+	</insert>
+</mapper>

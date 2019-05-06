@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.CouponMapper">
+<!-- 查询优惠券列表 -->
+	<select id="selectDataGrid" resultType="Coupon" parameterType="Coupon">
+        SELECT
+            c.id,
+            c.COUPON_NO couponNo,
+            c.title,
+            IF(c.`COUPON_TYPE` = 0,c.`MONEY`,CONCAT(c.`MONEY`*10,'折')) `moneyName`,
+            c.FULL_MONEY fullMoney,
+            c.COUPON_TYPE couponType,
+            c.COUPON_DESC couponDesc,
+            DATE_FORMAT(c.START_TIME,'%Y-%m-%d %H:%i:%s')  startTime,
+            DATE_FORMAT(c.END_TIME,'%Y-%m-%d %H:%i:%s') endTime,
+            c.IS_SHOW isShow,
+            c.IS_ORIGINAL isOriginal,
+            c.DUE_TYPE dueType,
+            c.DUE_TIME dueTime,
+            c.STATUS status,
+            c.`TYPE` `type`,
+            c.`USER_NUM` `userNum`,
+            c.`USER_DAY_NUM` `userDayNum`,
+            c.`COUPON_NUM` `couponNum`,
+            c.`IS_COUPON_NUM` `isCouponNum`,
+            (select f.file_path filePath from t_evm_static_files f
+              		where f.RELATION_ID=c.id and f.is_del=0 and f.file_type=0
+            				and f.big_type=1 and f.small_type=0) filePath,
+            c.created_time createdTime
+        FROM
+            t_evm_coupon c   
+        WHERE
+            c.is_del = 0
+            <if test="title!=null and title!=''">
+            	and c.title like CONCAT('%',#{title},'%')
+            </if>
+            <if test="type != null">
+            	and c.`TYPE` = #{type}
+            </if>
+            <if test="couponType != null">
+            	and c.`COUPON_TYPE` = #{couponType}
+            </if>
+            <if test="money != null">
+            	and c.`money` = #{money}
+            </if>
+            <if test="fullMoney != null">
+            	and c.`FULL_MONEY` = #{fullMoney}
+            </if>
+            <if test="isOriginal != null">
+            	and c.`IS_ORIGINAL` = #{isOriginal}
+            </if>
+            <if test="startTime != null and startTime != ''">
+            	and c.`START_TIME` like CONCAT('%',#{startTime},'%')
+            </if>
+            <if test="endTime != null and endTime != ''">
+            	and c.`END_TIME` like CONCAT('%',#{endTime},'%')
+            </if>
+        order by c.`created_time` desc    
+	</select>
+	
+	<!-- 查询下拉框优惠券列表 -->
+	<select id="selectCombogridDataGrid" resultType="Coupon" parameterType="Integer">
+        SELECT
+            c.id,
+            c.title,
+            c.money,
+            c.FULL_MONEY fullMoney,
+            c.COUPON_TYPE couponType,
+            c.`TYPE` `type` 
+        FROM t_evm_coupon c   
+        WHERE c.`is_del` = 0 and c.`STATUS`  = 0 
+            <if test="type != null">
+            	and c.`TYPE` = #{type}
+            </if>
+        order by c.`created_time` desc    
+	</select>
+<!-- 查询优惠券使用情况 -->
+	<select id="queryUserCoupon" resultType="Coupon" parameterType="Coupon">
+        SELECT
+            uc.id,
+            uc.open_id openId,
+            u.nick_name nickName,
+            uc.status,
+            uc.created_time createdTime
+        FROM
+            t_evm_wx_user_coupon uc
+        left join t_evm_wx_user u on u.open_id=uc.open_id    
+        WHERE
+            uc.is_del = 0
+            and uc.coupon_id=#{id}
+            <if test="nickName!=null and nickName!=''">
+            	and u.nick_Name like CONCAT('%',#{nickName},'%')
+            </if>
+        order by uc.ID desc    
+	</select>
+<!-- 根据ID查询优惠券详情-->
+	<select id="selectCouponById" resultType="Coupon" parameterType="Coupon">
+        SELECT
+           c.id,
+           c.COUPON_NO couponNo,
+            c.title,
+            c.money,
+            c.FULL_MONEY fullMoney,
+            c.COUPON_TYPE couponType,
+            c.COUPON_DESC couponDesc,
+            DATE_FORMAT(c.START_TIME,'%Y-%m-%d %H:%i:%s')  startTime,
+            DATE_FORMAT(c.END_TIME,'%Y-%m-%d %H:%i:%s') endTime,
+            f.file_path filePath,
+            c.IS_SHOW isShow,
+            c.IS_ORIGINAL isOriginal,
+            c.DUE_TYPE dueType,
+            c.DUE_TIME dueTime,
+            c.STATUS status,
+            c.`TYPE` `type`,
+            c.`USER_NUM` `userNum`,
+            c.`USER_DAY_NUM` `userDayNum`,
+            c.`COUPON_NUM` `couponNum`,
+            c.`IS_COUPON_NUM` `isCouponNum`,
+            c.`IS_ACTIVITY_SHARED` `isActivityShared` 
+        FROM t_evm_coupon c 
+        LEFT JOIN t_evm_static_files f on f.RELATION_ID = c.id and f.FILE_TYPE=0 AND f.BIG_TYPE=1 AND f.SMALL_TYPE=0   
+        WHERE  c.id=#{id} 
+            
+	</select>
+<!-- 删除优惠券图片	 -->
+<delete id="deleteFilePath" parameterType="Coupon">
+	delete from t_evm_static_files where RELATION_ID = #{id} and file_type = 0 and big_type = 1 and small_type=0
+</delete>
+
+<!-- 查询所有优惠券 -->
+	<select id="queryAllCoupon" resultType="Coupon" parameterType="Coupon">
+        SELECT
+            c.id,
+            c.title goodsName
+        FROM
+            t_evm_coupon c
+        WHERE
+            c.is_del = 0 
+            <if test="isShow != null">
+            	and c.`IS_SHOW` = #{isShow}
+            </if>
+        order by c.ID desc    
+	</select>	
+	<!-- 优惠券门店操作 -->
+	<select id="selectCouponStore" resultType="Integer" parameterType="Integer">
+		select `STORE_ID` from t_evm_coupon_store_dz where `COUPON_ID` = #{couponId} order by `CREATED_TIME` asc
+	</select>
+	<insert id="insertCouponStore" parameterType="Integer">
+		insert into t_evm_coupon_store_dz(`COUPON_ID`,`STORE_ID`) values (#{couponId},#{storeId})
+	</insert>
+	<delete id="deleteCouponStore" parameterType="Integer">
+		delete from t_evm_coupon_store_dz where `COUPON_ID` = #{couponId}
+	</delete>
+	<!-- 优惠券商品操作 -->
+	<select id="selectCouponGoods" resultType="Integer" parameterType="Integer">
+		select `GOODS_ID` from t_evm_coupon_goods_dz where `COUPON_ID` = #{couponId} order by `CREATED_TIME` asc
+	</select>
+	<insert id="insertCouponGoods" parameterType="Integer">
+		insert into t_evm_coupon_goods_dz(`COUPON_ID`,`GOODS_ID`) values (#{couponId},#{goodsId})
+	</insert>
+	<delete id="deleteCouponGoods" parameterType="Integer">
+		delete from t_evm_coupon_goods_dz where `COUPON_ID` = #{couponId}
+	</delete>
+	
+	
+	<update id="updateCoupon" parameterType="Coupon">
+		update t_evm_coupon set
+		<if test="title != null">
+			`TITLE` = #{title},
+		</if>
+		<if test="money != null">
+			`MONEY` = #{money},
+		</if>
+		<if test="fullMoney != null">
+			`FULL_MONEY` = #{fullMoney},
+		</if>
+		<if test="couponType != null">
+			`COUPON_TYPE` = #{couponType},
+		</if>
+		<if test="couponDesc != null">
+			`COUPON_DESC` =  #{couponDesc},
+		</if>
+		<if test="startTime != null">
+			`START_TIME` =  #{startTime},
+		</if>
+		<if test="endTime != null">
+			`END_TIME` =  #{endTime},
+		</if>
+		<if test="isShow != null">
+			`IS_SHOW` =  #{isShow},
+		</if>
+		<if test="isOriginal != null">
+			`IS_ORIGINAL` =  #{isOriginal},
+		</if>
+		<if test="dueType != null">
+			`DUE_TYPE` =  #{dueType},
+		</if>
+		<if test="dueTime != null">
+			`DUE_TIME` =  #{dueTime},
+		</if>
+		<if test="status != null">
+			`STATUS` =  #{status},
+		</if>
+		<if test="type != null">
+			`TYPE` =  #{type},
+		</if>
+		<if test="userNum != null">
+			`USER_NUM` =  #{userNum},
+		</if>
+		<if test="userDayNum != null">
+			`USER_DAY_NUM` =  #{userDayNum},
+		</if>
+		<if test="isCouponNum != null">
+			`IS_COUPON_NUM` =  #{isCouponNum},
+		</if>
+		<if test="isActivityShared != null">
+			`IS_ACTIVITY_SHARED` =  #{isActivityShared},
+		</if>
+		<if test="couponNum != null">
+			`COUPON_NUM` =  `COUPON_NUM` + #{couponNum},
+		</if>
+		`LAST_MODIFIED_TIME` = NOW() 
+		where `ID` = #{id} 
+	</update>
+	
+	
+	<!-- 优惠券查询 -->
+	<select id="selectUserCouponDataGrid" resultType="Coupon" parameterType="Coupon">
+		select 
+		uc.`ID` `id`,
+		u.`NICK_NAME` `nickName`,
+		u.`USER_NAME` `userName`,
+		u.`MOBILE_NO` `mobileNo`,
+		IF(ifnull(u.`MOBILE_NO`,'') != '','会员',IF(u.`IS_AUTH` = 1,'粉丝','普通用户')) `userType`,
+		IF((select count(o1.`ID`) from t_evm_order o1 where o1.`OPEN_ID` = uc.`OPEN_ID` ) &lt;= 0,'新客户','老客户') `newOld`,
+		s.`STORE_NAME` `storeName`,
+		DATE_FORMAT(uc.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `issueTime`,
+		CASE uc.`SOURCE_TYPE` 
+		WHEN 0 THEN '日常领券' 
+		WHEN 1 THEN '砍价获得' 
+		WHEN 2 THEN '扫码领券' 
+		WHEN 3 THEN '券链接获得' 
+		WHEN 4 THEN '新用户注册' 
+		WHEN 5 THEN '人工发放' 
+		WHEN 6 THEN '首页领取' 
+		END `source`,
+		c.`TITLE` `title`,
+		IF(c.`COUPON_TYPE` = 0,c.`MONEY`,CONCAT(c.`MONEY`*10,'折')) `moneyName`,
+		c.`FULL_MONEY` `fullMoney`,
+		uc.`COUPON_NO` `couponNo`,
+		c.`STATUS` `status`,
+		DATE_FORMAT(c.`START_TIME`,'%Y-%m-%d %H:%i:%s')  `startTime`,
+        DATE_FORMAT(c.`END_TIME`,'%Y-%m-%d %H:%i:%s') `endTime`,
+		CASE uc.`STATUS` 
+		WHEN 0 THEN '未使用' 
+		WHEN 1 THEN '已使用' 
+		WHEN 2 THEN '已过期' 
+		END `statusName`,
+		DATE_FORMAT(o.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `createdTime`,
+		IF(o.`STORE_ID` = 0,'小程序',s1.`STORE_NAME`) `useStoreName`,
+		o.`ORDER_NO` `orderNo` 
+		from t_evm_wx_user_coupon uc
+		left join t_evm_coupon c on c.`ID` = uc.`COUPON_ID` 
+		left join t_evm_wx_user u on u.`OPEN_ID` = uc.`OPEN_ID` 
+		left join t_evm_store s on s.`ID` = u.`STORE_ID` 
+		left join t_evm_order o on o.`COUPON_ID` = uc.`ID`
+		left join t_evm_store s1 on s1.`ID` = o.`STORE_ID`
+		where uc.`IS_DEL` = 0 
+		<if test="title != null and title != ''">
+			and (u.`NICK_NAME` like CONCAT('%',#{title},'%')
+				or u.`USER_NAME` like CONCAT('%',#{title},'%')
+				or u.`MOBILE_NO` like CONCAT('%',#{title},'%')
+			)
+		</if>
+		<if test="type != null">
+        	and uc.`SOURCE_TYPE` = #{type}
+        </if>
+        <if test="storeId != null">
+        	and u.`STORE_ID` = #{storeId}
+        </if>
+        <if test="createdTime != null and createdTime != ''">
+        	and uc.`CREATED_TIME` like CONCAT('%',#{createdTime},'%')
+        </if>
+        <if test="couponName != null and couponName != ''">
+        	and c.`TITLE` like CONCAT('%',#{couponName},'%')
+        </if>
+        <if test="couponNo != null and couponNo != ''">
+        	and c.`COUPON_NO` like CONCAT('%',#{couponNo},'%')
+        </if>
+        order by uc.`CREATED_TIME` desc 
+	</select>
+</mapper>

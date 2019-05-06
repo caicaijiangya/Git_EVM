@@ -1,0 +1,619 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.OrderMapper">
+<!-- 查询所有订单 -->
+	<select id="selectDataGrid" resultType="Order" parameterType="Order">
+        SELECT
+            o.id,
+            o.open_id openId,
+            u.user_name userName,
+            u.nick_name nickName,
+            u2.user_name userName2,
+            u2.nick_name nickName2,
+            o.order_no orderNo,
+            ot.`TRANS_NO` transNo,
+            o.store_id storeId,
+            s.store_name storeName,
+            o.paymoney_style paymoneyStyle,
+            o.take_style takeStyle,
+            o.`status`,
+            o.order_type orderType,
+            o.activity_id activityId,
+            oa.express_no expressNo,
+            o.created_time createdTime,
+            if(
+            	(select cg.`STATUS` from t_evm_collage_goods cg 
+				left join t_evm_collage_goods_detail cgd on cgd.`COLLAGE_ID` = cg.`ID` 
+				where cgd.`ORDER_ID` = o.`ID` and cgd.`STATUS` = 1 ) = 1,'拼团成功',''
+            ) `isCollage`,
+            (select SUM(od.`GOODS_NUMS`)  from t_evm_order_detail od where od.`ORDER_ID` = o.`ID` group by od.`ORDER_ID`) `goodsNum`,
+			(select SUM((gs.`GOODS_PRICE` * od.`GOODS_NUMS`))  from t_evm_order_detail od LEFT JOIN t_evm_goods_spec gs on gs.`ID` = od.`SPEC_ID` where od.`ORDER_ID` = o.`ID` group by od.`ORDER_ID`) `goodsPrice`,
+			IFNULL(oa.`FREIGHT`,0) `freight`,
+			o.`TOTAL_BALANCES` `totalBalances`,
+			o.`DISCOUNT_PRICE` `discountPrice`,
+			IF(ot.`STATUS` = 1,ot.`BALANCES`,IF(ot.`STATUS` = 3,ot.`BALANCES`,IF(ot.`STATUS` = 4,ot.`BALANCES`,''))) `payBalances`,
+			IFNULL(ot.`REFUND_BALANCES`,0) `refundBalances`,
+			IF(ot.`STATUS` = 3,IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款'),'')  `note`
+            <!-- CASE o.`status`  
+            	WHEN 3 THEN IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款')
+			  	WHEN 4 THEN IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款') 
+			  	WHEN 5 THEN IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款')
+			  	WHEN 7 THEN IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款')
+			  	WHEN 8 THEN IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款')
+			   ELSE '' END `note` -->
+        FROM
+            t_evm_order o
+        LEFT JOIN t_evm_store s ON o.store_id = s.id
+        LEFT JOIN t_evm_wx_user u ON u.open_id = o.open_id	
+        LEFT JOIN t_evm_wx_user u2 ON u2.open_id = o.WRITE_OFF_OPEN_ID
+        LEFT JOIN t_evm_order_address oa on oa.order_id = o.id				    
+        left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+        WHERE
+            o.is_del = 0
+            <if test="orderNo != null and orderNo != ''">
+				and (u.NICK_NAME like CONCAT('%',#{orderNo},'%')
+				or o.ORDER_NO like CONCAT('%',#{orderNo},'%')
+				or u2.nick_name like CONCAT('%',#{orderNo},'%')
+				or s.store_name like CONCAT('%',#{orderNo},'%')
+				)
+			</if>
+			<if test="orderType !=null ">
+				and o.ORDER_TYPE = #{orderType}
+			</if>
+			<if test="status !=null ">
+				and o.`status` = #{status}
+			</if>
+			<if test="takeStyle !=null ">
+				and o.`take_style` = #{takeStyle}
+			</if>
+			<if test="startTime !=null and startTime != ''">
+				and o.`CREATED_TIME` &gt;= #{startTime}
+			</if>
+			<if test="endTime !=null and endTime != ''">
+				and o.`CREATED_TIME` &lt; #{endTime}
+			</if>
+			<if test="selectedStoreIds != null">
+				and o.`STORE_ID` IN 
+				<foreach collection="selectedStoreIds" item="selectedStoreId" separator="," open="(" close=")">
+            		#{selectedStoreId}
+        		</foreach>
+			</if>
+        order by ID desc    
+    </select>
+<!-- 下载订单  -->
+	<select id="downLoadOrder" resultType="java.util.Map" parameterType="Order">
+		select 
+		o.`ID` `id`,
+		IF(o.`TAKE_STYLE` = 0,'小程序',s.`STORE_NAME`) `storeName`,
+		uw.`USER_NAME` `writeOffName`,
+		uw.`CODE` `writeOffCode`,
+		DATE_FORMAT(o.`CREATED_TIME`,'%Y-%m-%d') `createTime`,
+		IF((select count(o1.`ID`) from t_evm_order o1 where o1.`OPEN_ID` = o.`OPEN_ID` ) = 1,'新客户','老客户') `newOld`,
+		CASE o.`ORDER_TYPE` WHEN 0 THEN '普通订单' WHEN 1 THEN '秒杀订单' WHEN 2 THEN '拼团订单' WHEN 3 THEN '特价订单' WHEN 4 THEN '积分订单' WHEN 5 THEN '砍价订单' WHEN 6 THEN '满减订单' WHEN 7 THEN '满赠订单' WHEN 8 THEN '打折订单' END `orderType`,
+		IF(o.`STATUS` = 0,'待付款',IF(o.`STATUS` = 1,'待发货',IF(o.`STATUS` = 2,'待取货',IF(o.`STATUS` = 3,'待退款',IF(o.`STATUS` = 4,'已退款',IF(o.`STATUS` = 5,'订单取消',IF(o.`STATUS` = 6,'订单完成',IF(o.`STATUS` = 7,'退货待审核',IF(o.`STATUS` = 8,'退货待收货',''))))))))) `orderStatus`,
+		o.`ORDER_NO` `orderNo`,
+		ot.`TRANS_NO` `transNo`,
+		(select SUM(od.`GOODS_NUMS`)  from t_evm_order_detail od where od.`ORDER_ID` = o.`ID` group by od.`ORDER_ID`) `goodsNum`,
+		(select SUM((gs.`GOODS_PRICE` * od.`GOODS_NUMS`))  from t_evm_order_detail od LEFT JOIN t_evm_goods_spec gs on gs.`ID` = od.`SPEC_ID` where od.`ORDER_ID` = o.`ID` group by od.`ORDER_ID`) `goodsPrice`,
+		oa.`FREIGHT` `freight`,
+		o.`TOTAL_BALANCES` `totalBalances`,
+		o.`DISCOUNT_PRICE` `discountPrice`,
+		IF(ot.`STATUS` = 1,ot.`BALANCES`,IF(ot.`STATUS` = 3,ot.`BALANCES`,IF(ot.`STATUS` = 4,ot.`BALANCES`,''))) `payBalances`,
+		IF(ot.`STATUS` = 3,ot.`BALANCES`,'') `refundBalances`,
+		IF(ot.`STATUS` = 3,IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款'),'')  `refundType`,
+		c.`TITLE` `couponName`,
+		u.`USER_NAME` `userName`,
+		IF(o.`TAKE_STYLE` = 0,'物流配送',IF(o.`TAKE_STYLE` = 1,'到店取货','')) `takeStyle`,
+		IF(o.`PAYMONEY_STYLE` = 0,'微信支付',IF(o.`PAYMONEY_STYLE` = 1,'到店付款','')) `payMoneyStyle`,
+		oa.`NOTE` `expressName`,
+		oa.`EXPRESS_NO` `expressNo`,
+		oa.`MOBILE_NO` `mobileNo`,
+		CONCAT_WS('',a0.`NAME`,a1.`NAME`,a2.`NAME`,oa.`DETAIL_ADDRESS`) `detailAddress`,
+		op.`PRICE` `discountAmount`,
+		o2.`MAX_CREATED_TIME` `maxCreatedTime`,
+		o2.`MIN_CREATED_TIME` `minCreatedTime`,
+		o2.`ORDER_NUM` `orderNum` 
+		from t_evm_order o 
+		left join t_evm_order_pre op on op.`ORDER_ID` = o.`ID`
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+		left join t_evm_store s on s.`ID` = o.`STORE_ID` 
+		left join t_evm_wx_user_coupon uc on uc.`ID` = o.`COUPON_ID`
+		left join t_evm_coupon c on c.`ID` = uc.`COUPON_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID`
+		left join (
+			select o1.`OPEN_ID`,MAX(o1.`CREATED_TIME`) `MAX_CREATED_TIME`,MIN(o1.`CREATED_TIME`) `MIN_CREATED_TIME`,COUNT(o1.`ID`) `ORDER_NUM` from t_evm_order o1 GROUP BY o1.`OPEN_ID` 
+		) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+		left join t_evm_wx_user uw on uw.`OPEN_ID` = o.`WRITE_OFF_OPEN_ID` 
+		left join t_evm_order_address oa on oa.`ORDER_ID` = o.`ID`
+		left join t_evm_area a0 on a0.`ID` = oa.`PROVINCE`
+		left join t_evm_area a1 on a1.`ID` = oa.`CITY`
+		left join t_evm_area a2 on a2.`ID` = oa.`AREA`			    
+        WHERE o.`IS_DEL` = 0 
+            <if test="orderNo != null and orderNo != ''">
+				and (u.NICK_NAME like CONCAT('%',#{orderNo},'%')
+				or o.ORDER_NO like CONCAT('%',#{orderNo},'%')
+				or uw.nick_name like CONCAT('%',#{orderNo},'%')
+				or s.store_name like CONCAT('%',#{orderNo},'%')
+				)
+			</if>
+			<if test="orderType !=null ">
+				and o.ORDER_TYPE = #{orderType}
+			</if>
+			<if test="status !=null ">
+				and o.`status` = #{status}
+			</if>
+			<if test="takeStyle !=null ">
+				and o.`take_style` = #{takeStyle}
+			</if>
+			<if test="startTime !=null and startTime != ''">
+				and o.`CREATED_TIME` &gt;= #{startTime}
+			</if>
+			<if test="endTime !=null and endTime != ''">
+				and o.`CREATED_TIME` &lt; #{endTime}
+			</if>
+			<if test="selectedStoreIds != null">
+				and o.`STORE_ID` IN 
+				<foreach collection="selectedStoreIds" item="selectedStoreId" separator="," open="(" close=")">
+            		#{selectedStoreId}
+        		</foreach>
+			</if>
+			order by o.`CREATED_TIME` desc 
+	</select> 
+	<!-- 下载订单明细  -->
+	<select id="downLoadOrderDetail" resultType="java.util.Map" parameterType="Order">
+		select 
+		u.`NICK_NAME` `nickName`,
+		u.`USER_NAME` `userName`,
+		u.`MOBILE_NO` `mobileNo`,
+		gb.`NAME` `brandName`,
+		IF(o.`TAKE_STYLE` = 0,'小程序',s.`STORE_NAME`) `storeName`,
+		uw.`USER_NAME` `writeOffName`,
+		uw.`CODE` `writeOffCode`,
+		DATE_FORMAT(o.`CREATED_TIME`,'%Y-%m-%d') `createTime`,
+		DATE_FORMAT(ot.`LAST_MODIFIED_TIME`,'%Y-%m-%d') `payTime`,
+		IF((select count(o1.`ID`) from t_evm_order o1 where o1.`OPEN_ID` = o.`OPEN_ID` ) = 1,'新客户','老客户') `newOld`,
+		IF(o.`STATUS` = 0,'待付款',IF(o.`STATUS` = 1,'待发货',IF(o.`STATUS` = 2,'待取货',IF(o.`STATUS` = 3,'待退款',IF(o.`STATUS` = 4,'已退款',IF(o.`STATUS` = 5,'订单取消',IF(o.`STATUS` = 6,'订单完成',IF(o.`STATUS` = 7,'退货待审核',IF(o.`STATUS` = 8,'退货待收货',''))))))))) `orderStatus`,
+		IF(o.`PAYMONEY_STYLE` = 0,'微信支付',IF(o.`PAYMONEY_STYLE` = 1,'到店付款','')) `payMoneyStyle`,
+		o.`ORDER_NO` `orderNo`,
+		CASE o.`ORDER_TYPE` 
+		WHEN 0 THEN '普通' 
+		WHEN 1 THEN '秒杀' 
+		WHEN 2 THEN '拼团' 
+		WHEN 3 THEN '特价' 
+		WHEN 4 THEN '积分兑换' 
+		WHEN 5 THEN '砍价' 
+		WHEN 6 THEN '满减' 
+		WHEN 7 THEN '满赠' 
+		WHEN 8 THEN '打折' 
+		END `orderType`,
+		ot.`TRANS_NO` `transNo`,
+		gs.`GOODS_CODE` `sku`,
+		g.`GOODS_NAME` `goodsName`,
+		IF(od.`IS_GIFT` = 1,'赠品','') `isGift`,
+		od.`GOODS_SPEC` `goodsSpec`,
+		od.`GOODS_NUMS` `goodsNum`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		IF(od.`IS_GIFT` = 1,gs.`GOODS_PRICE`,od.`GOODS_PRICE`) `goodsPriceO`,
+		IF(od.`IS_GIFT` = 1,gs.`GOODS_PRICE`,CONVERT(( (od.`GOODS_PRICE` * IF(o.`ORDER_TYPE` != 5,od.`GOODS_NUMS`,1))/ o.`TOTAL_BALANCES` * o.`DISCOUNT_PRICE`), DECIMAL(10,3))) `discountPrice`,
+		IF(od.`IS_GIFT` = 1,0,
+			CASE o.`STATUS` WHEN 0 THEN '' WHEN 5 THEN '' ELSE 
+			((od.`GOODS_PRICE` * IF(o.`ORDER_TYPE` != 5,od.`GOODS_NUMS`,1)) - 
+			 (CONVERT(( 
+				(od.`GOODS_PRICE` * IF(o.`ORDER_TYPE` != 5,od.`GOODS_NUMS`,1))/ o.`TOTAL_BALANCES` * o.`DISCOUNT_PRICE`
+			 ), DECIMAL(10,3)))
+			) END
+		)	`transPrice`,
+		IF(o.`STATUS` = 4,((od.`GOODS_PRICE` * IF(o.`ORDER_TYPE` != 5,od.`GOODS_NUMS`,1)) - (CONVERT(( (od.`GOODS_PRICE` * IF(o.`ORDER_TYPE` != 5,od.`GOODS_NUMS`,1))/ o.`TOTAL_BALANCES` * o.`DISCOUNT_PRICE`), DECIMAL(10,3)))),'') `refundPrice`,
+		IF(ot.`STATUS` = 3,IF(IFNULL(oa.`EXPRESS_NO`,'') = '','退款','退货退款'),'')  `refundType`,
+		IF(ot.`STATUS` = 3,ot.`REFUND_NAME`,'')  `refundName`,
+		if(
+            	(select cg.`STATUS` from t_evm_collage_goods cg 
+				left join t_evm_collage_goods_detail cgd on cgd.`COLLAGE_ID` = cg.`ID` 
+				where cgd.`ORDER_ID` = o.`ID` and cgd.`STATUS` = 1 ) = 1,'拼团成功',''
+            ) `isCollage`,
+		
+		oa.`NAME` `contactName`,
+		oa.`MOBILE_NO` `contactMobileNo`,
+		CONCAT(a0.`NAME`,a1.`NAME`,a2.`NAME`,oa.`DETAIL_ADDRESS`) `detailAddress`,
+		a0.`NAME` `province`,
+		a1.`NAME` `city`,
+		o2.`MAX_CREATED_TIME` `maxCreatedTime`,
+		o2.`MIN_CREATED_TIME` `minCreatedTime`,
+		o2.`ORDER_NUM` `orderNum` 
+		from t_evm_order o 
+		LEFT JOIN t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID`
+		LEFT JOIN t_evm_order_address oa on oa.`ORDER_ID` = o.`ID` 
+		LEFT JOIN t_evm_store s on s.`ID` = o.`STORE_ID`
+		LEFT JOIN (
+			select `ORDER_ID`,`SPEC_ID`,`GOODS_IMAGES`,`GOODS_NUMS`,`GOODS_PRICE`,`GOODS_SPEC`,0 `IS_GIFT` from t_evm_order_detail 
+			Union
+			select `ORDER_ID`,`GOODS_ID` `SPEC_ID`,`GOODS_IMAGES`,`GOODS_NUMS`,0 `GOODS_PRICE`,NULL `GOODS_SPEC`,1 `IS_GIFT` from t_evm_order_gift
+		) od on od.`ORDER_ID` = o.`ID`
+		LEFT JOIN t_evm_goods_spec gs on gs.`ID` = od.`SPEC_ID`
+		LEFT JOIN t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		LEFT JOIN t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		LEFT JOIN t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID`
+		left join (
+			select o1.`OPEN_ID`,MAX(o1.`CREATED_TIME`) `MAX_CREATED_TIME`,MIN(o1.`CREATED_TIME`) `MIN_CREATED_TIME`,COUNT(o1.`ID`) `ORDER_NUM` from t_evm_order o1 GROUP BY o1.`OPEN_ID` 
+		) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+		LEFT JOIN t_evm_wx_user uw on uw.`OPEN_ID` = o.`WRITE_OFF_OPEN_ID`
+		left join t_evm_area a0 on a0.`ID` = oa.`PROVINCE`
+		left join t_evm_area a1 on a1.`ID` = oa.`CITY`	
+		left join t_evm_area a2 on a2.`ID` = oa.`AREA`		    
+        WHERE o.`IS_DEL` = 0 
+            <if test="orderNo != null and orderNo != ''">
+				and (u.NICK_NAME like CONCAT('%',#{orderNo},'%')
+				or o.ORDER_NO like CONCAT('%',#{orderNo},'%')
+				or uw.nick_name like CONCAT('%',#{orderNo},'%')
+				or s.store_name like CONCAT('%',#{orderNo},'%')
+				)
+			</if>
+			<if test="orderType !=null ">
+				and o.ORDER_TYPE = #{orderType}
+			</if>
+			<if test="status !=null ">
+				and o.`status` = #{status}
+			</if>
+			<if test="takeStyle !=null ">
+				and o.`take_style` = #{takeStyle}
+			</if>
+			<if test="startTime !=null and startTime != ''">
+				and o.`CREATED_TIME` &gt;= #{startTime}
+			</if>
+			<if test="endTime !=null and endTime != ''">
+				and o.`CREATED_TIME` &lt; #{endTime}
+			</if>
+			<if test="selectedStoreIds != null">
+				and o.`STORE_ID` IN 
+				<foreach collection="selectedStoreIds" item="selectedStoreId" separator="," open="(" close=")">
+            		#{selectedStoreId}
+        		</foreach>
+			</if>
+			order by o.`CREATED_TIME` desc 
+	</select>
+	<!-- 下载订单赠品  -->
+	<select id="downLoadOrderGift" resultType="java.util.Map" parameterType="Order">
+		select 
+		o.`ORDER_NO` `orderNo`,
+		g.`GOODS_CODE` `goodsCode`,
+		og.`GOODS_NAME` `goodsName`,
+		og.`GOODS_NUMS` `goodsNums`
+		from t_evm_order o 
+		left join t_evm_order_gift og on og.`ORDER_ID` = o.`ID`
+		left join t_evm_goods g on g.`ID` = og.`GOODS_ID`	
+		LEFT JOIN t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID`	
+		LEFT JOIN t_evm_wx_user uw on uw.`OPEN_ID` = o.`WRITE_OFF_OPEN_ID`	
+		LEFT JOIN t_evm_store s on s.`ID` = o.`STORE_ID`    
+        WHERE o.`IS_DEL` = 0 
+            <if test="orderNo != null and orderNo != ''">
+				and (u.NICK_NAME like CONCAT('%',#{orderNo},'%')
+				or o.ORDER_NO like CONCAT('%',#{orderNo},'%')
+				or uw.nick_name like CONCAT('%',#{orderNo},'%')
+				or s.store_name like CONCAT('%',#{orderNo},'%')
+				)
+			</if>
+			<if test="orderType !=null ">
+				and o.ORDER_TYPE = #{orderType}
+			</if>
+			<if test="status !=null ">
+				and o.`status` = #{status}
+			</if>
+			<if test="takeStyle !=null ">
+				and o.`take_style` = #{takeStyle}
+			</if>
+			<if test="startTime !=null and startTime != ''">
+				and o.`CREATED_TIME` &gt;= #{startTime}
+			</if>
+			<if test="endTime !=null and endTime != ''">
+				and o.`CREATED_TIME` &lt; #{endTime}
+			</if>
+			order by o.`CREATED_TIME` desc 
+	</select> 
+<!-- 查询订单详情 -->
+	<select id="queryOrderDetailById" parameterType="java.lang.Integer" resultType="Order">
+		SELECT
+			o.ID,
+			o.OPEN_ID openId,
+			u.NICK_NAME nickName,
+			u.USER_NAME userName,
+			o.ORDER_NO orderNo,
+			o.TOTAL_BALANCES totalBalances,
+			o.PAYMONEY_STYLE paymoneyStyle,
+			o.take_style takeStyle,
+			o.STATUS,
+			o.discount_price discountPrice,
+			oa.express_no expressNo,
+			oa.detail_address detailAddress,
+			a1.`name` provinceName,
+			a2.`name` cityName,
+			a3.`name` areaName,
+			o.ORDER_TYPE orderType
+		FROM
+			t_evm_order	o
+		LEFT JOIN t_evm_wx_user u ON o.OPEN_ID = u.OPEN_ID
+		LEFT JOIN t_evm_order_address oa on oa.order_id = o.id
+		LEFT JOIN t_evm_area a1 on oa.province=a1.id
+		left join t_evm_area a2 on oa.city=a2.id
+		left join t_evm_area a3 on oa.area=a3.id
+		WHERE ifnull(o.is_del,0)=0
+		and o.id=#{value}				
+	</select>
+<!-- 查找订单里的商品列表数据 -->
+	<select id="queryOrderGoodsList" resultType="OrderDetail">
+		SELECT
+			od.id,
+			g.GOODS_NAME goodsName,
+			od.GOODS_NUMS goodsNums,
+			od.GOODS_PRICE goodsPrice,
+			(
+				SELECT
+					f.FILE_PATH
+				FROM
+					t_evm_static_files f
+				WHERE
+					f.RELATION_ID = od.goods_id
+					and f.file_type = 0
+					AND f.big_type = 0
+					AND f.small_type = 0
+		)  filePath
+		FROM 
+			t_evm_order_detail od
+		left join
+			t_evm_goods g
+		on g.id = od.goods_id
+		WHERE
+			od.is_del = 0
+			and od.order_id =#{orderId}
+		order by od.id desc
+	</select>
+	
+<!-- 订单统计(按天) -->
+	<select id="queryOrderCount" parameterType="Order" resultType="Order">
+		SELECT
+			DATE_FORMAT(o.created_time, '%Y-%m-%d') days,
+			ifnull(SUM(ot.`BALANCES`),0) realPrice,
+			(select ifnull(sum(od.goods_nums),0) from t_evm_order o1 
+				left join t_evm_order_detail od on od.`ORDER_ID` = o1.`ID` 
+				LEFT JOIN t_evm_store s1 ON s1.id = o1.STORE_ID 
+				where DATE_FORMAT(od.created_time, '%Y-%m-%d') = days 
+				and ifnull(o1.is_del,0) = 0 
+				<if test="storeName != null and storeName != ''">
+					and ( s1.store_name like CONCAT('%',#{storeName},'%'))
+				</if>
+				<if test="orderType != null">
+					and o1.order_type = #{orderType}
+				</if>	
+				<if test="takeStyle != null">
+					and o1.take_style = #{takeStyle}
+				</if>
+				<if test=" dateStart != null and dateStart != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') >= #{dateStart} ]]>
+				</if>
+				<if test=" dateEnd != null and dateEnd != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') <= #{dateEnd} ]]>
+				</if>
+				and ((o1.take_style = 0 and o1.`STATUS` in (1,2,6)) OR (o1.take_style = 1 and o1.`STATUS` in (6)))
+			) orderQuantity,
+			COUNT(o.`ID`) goodsNum,
+			CONVERT(ifnull(SUM(ot.`BALANCES`),0)/COUNT(o.`ID`), DECIMAL(10,3)) `goodsPrice` ,
+			(select CONVERT(orderQuantity/COUNT(o.`ID`), DECIMAL(10,2))) `goodsAver`,
+			s.store_name storeName
+		FROM t_evm_order o 
+		LEFT JOIN t_evm_store s ON s.id = o.STORE_ID
+		LEFT JOIN t_evm_order_trans ot ON ot.`ORDER_ID` = o.id
+		WHERE
+			ifnull(o.is_del,0) = 0 
+			<if test="storeName != null and storeName != ''">
+				and ( s.store_name like CONCAT('%',#{storeName},'%'))
+			</if>
+			<if test="orderType != null">
+				and o.order_type = #{orderType}
+			</if>	
+			<if test="takeStyle != null">
+				and o.take_style = #{takeStyle}
+			</if>
+			<if test=" dateStart != null and dateStart != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m-%d') >= #{dateStart} ]]>
+			</if>
+			<if test=" dateEnd != null and dateEnd != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m-%d') <= #{dateEnd} ]]>
+			</if>
+			<if test="selectedStoreIds != null">
+				and o.`STORE_ID` IN 
+				<foreach collection="selectedStoreIds" item="selectedStoreId" separator="," open="(" close=")">
+            		#{selectedStoreId}
+        		</foreach>
+			</if>
+			and ((o.take_style = 0 and o.`STATUS` in (1,2,6)) OR (o.take_style = 1 and o.`STATUS` in (6)))
+		GROUP BY days
+		ORDER BY days DESC 
+	</select>
+<!-- 导出订单统计(按天) -->
+	<select id="exportDayOrderExcelList" parameterType="Order" resultType="java.util.Map">
+		SELECT
+			DATE_FORMAT(o.created_time, '%Y-%m-%d') days,
+			ifnull(SUM(ot.`BALANCES`),0) realPrice,
+			(select ifnull(sum(od.goods_nums),0) from t_evm_order o1 
+				left join t_evm_order_detail od on od.`ORDER_ID` = o1.`ID` 
+				LEFT JOIN t_evm_store s1 ON s1.id = o1.STORE_ID 
+				where DATE_FORMAT(od.created_time, '%Y-%m-%d') = days 
+				and ifnull(o1.is_del,0) = 0 
+				<if test="storeName != null and storeName != ''">
+					and ( s1.store_name like CONCAT('%',#{storeName},'%'))
+				</if>
+				<if test="orderType != null">
+					and o1.order_type = #{orderType}
+				</if>	
+				<if test="takeStyle != null">
+					and o1.take_style = #{takeStyle}
+				</if>
+				<if test=" dateStart != null and dateStart != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') >= #{dateStart} ]]>
+				</if>
+				<if test=" dateEnd != null and dateEnd != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') <= #{dateEnd} ]]>
+				</if>
+				and ((o1.take_style = 0 and o1.`STATUS` in (1,2,6)) OR (o1.take_style = 1 and o1.`STATUS` in (6)))
+			) orderQuantity,
+			COUNT(o.`ID`) goodsNum,
+			CONVERT(ifnull(SUM(ot.`BALANCES`),0)/COUNT(o.`ID`), DECIMAL(10,3)) `goodsPrice` ,
+			(select CONVERT(orderQuantity/COUNT(o.`ID`), DECIMAL(10,2))) `goodsAver`,
+			s.store_name storeName
+		FROM t_evm_order o 
+		LEFT JOIN t_evm_store s ON s.id = o.STORE_ID
+		LEFT JOIN t_evm_order_trans ot ON ot.`ORDER_ID` = o.id
+		WHERE
+			ifnull(o.is_del,0) = 0
+			<if test="storeName != null and storeName != ''">
+				and ( s.store_name like CONCAT('%',#{storeName},'%'))
+			</if>
+			<if test="orderType != null">
+				and o.order_type = #{orderType}
+			</if>
+			<if test="takeStyle != null">
+				and o.take_style = #{takeStyle}
+			</if>	
+			<if test=" dateStart != null and dateStart != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m-%d') >= #{dateStart} ]]>
+			</if>
+			<if test=" dateEnd != null and dateEnd != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m-%d') <= #{dateEnd} ]]>
+			</if>
+			<if test="selectedStoreIds != null">
+				and o.`STORE_ID` IN 
+				<foreach collection="selectedStoreIds" item="selectedStoreId" separator="," open="(" close=")">
+            		#{selectedStoreId}
+        		</foreach>
+			</if>
+			and ((o.take_style = 0 and o.`STATUS` in (1,2,6)) OR (o.take_style = 1 and o.`STATUS` in (6)))
+		GROUP BY days
+		ORDER BY days DESC 
+	</select>
+<!-- 订单统计(按月) -->
+	<select id="queryOrderCountByMonth" parameterType="Order" resultType="Order">
+		SELECT
+			DATE_FORMAT(o.created_time, '%Y-%m') months,
+			ifnull(SUM(ot.`BALANCES`),0) realPrice,
+			(select ifnull(sum(od.goods_nums),0) from t_evm_order o1 
+				left join t_evm_order_detail od on od.`ORDER_ID` = o1.`ID` 
+				LEFT JOIN t_evm_store s1 ON s1.id = o1.STORE_ID 
+				where DATE_FORMAT(od.created_time, '%Y-%m') = months 
+				and ifnull(o1.is_del,0) = 0 
+				<if test="storeName != null and storeName != ''">
+					and ( s1.store_name like CONCAT('%',#{storeName},'%'))
+				</if>
+				<if test="orderType != null">
+					and o1.order_type = #{orderType}
+				</if>	
+				<if test="takeStyle != null">
+					and o1.take_style = #{takeStyle}
+				</if>
+				<if test=" dateStart != null and dateStart != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') >= #{dateStart} ]]>
+				</if>
+				<if test=" dateEnd != null and dateEnd != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') <= #{dateEnd} ]]>
+				</if>
+				and ((o1.take_style = 0 and o1.`STATUS` in (1,2,6)) OR (o1.take_style = 1 and o1.`STATUS` in (6)))
+			) orderQuantity,
+			COUNT(o.`ID`) goodsNum,
+			CONVERT(ifnull(SUM(ot.`BALANCES`),0)/COUNT(o.`ID`), DECIMAL(10,3)) `goodsPrice` ,
+			(select CONVERT(orderQuantity/COUNT(o.`ID`), DECIMAL(10,2))) `goodsAver`,
+			s.store_name storeName
+		FROM t_evm_order o 
+		LEFT JOIN t_evm_store s ON s.id = o.STORE_ID
+		LEFT JOIN t_evm_order_trans ot ON ot.`ORDER_ID` = o.id
+		WHERE
+			ifnull(o.is_del,0) = 0
+			<if test="storeName != null and storeName != ''">
+				and ( s.store_name like CONCAT('%',#{storeName},'%'))
+			</if>
+			<if test="takeStyle != null">
+				and o.take_style = #{takeStyle}
+			</if>
+			<if test="orderType != null">
+				and o.order_type = #{orderType}
+			</if>
+			<if test=" dateStart != null and dateStart != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m') >= #{dateStart} ]]>
+			</if>
+			<if test=" dateEnd != null and dateEnd != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m') <= #{dateEnd} ]]>
+			</if>
+			<if test="selectedStoreIds != null">
+				and o.`STORE_ID` IN 
+				<foreach collection="selectedStoreIds" item="selectedStoreId" separator="," open="(" close=")">
+            		#{selectedStoreId}
+        		</foreach>
+			</if>	
+			and ((o.take_style = 0 and o.`STATUS` in (1,2,6)) OR (o.take_style = 1 and o.`STATUS` in (6)))
+		GROUP BY months
+		ORDER BY months DESC 
+	</select>
+<!-- 导出订单统计(按月) -->
+	<select id="exportMonthOrderExcelList" parameterType="Order" resultType="java.util.Map">
+		SELECT
+			DATE_FORMAT(o.created_time, '%Y-%m') months,
+			ifnull(SUM(ot.`BALANCES`),0) realPrice,
+			(select ifnull(sum(od.goods_nums),0) from t_evm_order o1 
+				left join t_evm_order_detail od on od.`ORDER_ID` = o1.`ID` 
+				LEFT JOIN t_evm_store s1 ON s1.id = o1.STORE_ID 
+				where DATE_FORMAT(od.created_time, '%Y-%m') = months 
+				and ifnull(o1.is_del,0) = 0 
+				<if test="storeName != null and storeName != ''">
+					and ( s1.store_name like CONCAT('%',#{storeName},'%'))
+				</if>
+				<if test="orderType != null">
+					and o1.order_type = #{orderType}
+				</if>	
+				<if test="takeStyle != null">
+					and o1.take_style = #{takeStyle}
+				</if>
+				<if test=" dateStart != null and dateStart != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') >= #{dateStart} ]]>
+				</if>
+				<if test=" dateEnd != null and dateEnd != '' ">
+	                <![CDATA[ and DATE_FORMAT(o1.created_time, '%Y-%m-%d') <= #{dateEnd} ]]>
+				</if>
+				and ((o1.take_style = 0 and o1.`STATUS` in (1,2,6)) OR (o1.take_style = 1 and o1.`STATUS` in (6)))
+			) orderQuantity,
+			COUNT(o.`ID`) goodsNum,
+			CONVERT(ifnull(SUM(ot.`BALANCES`),0)/COUNT(o.`ID`), DECIMAL(10,3)) `goodsPrice` ,
+			(select CONVERT(orderQuantity/COUNT(o.`ID`), DECIMAL(10,2))) `goodsAver`,
+			s.store_name storeName
+		FROM t_evm_order o 
+		LEFT JOIN t_evm_store s ON s.id = o.STORE_ID
+		LEFT JOIN t_evm_order_trans ot ON ot.`ORDER_ID` = o.id
+		WHERE
+			ifnull(o.is_del,0) = 0
+			<if test="storeName != null and storeName != ''">
+				and ( s.store_name like CONCAT('%',#{storeName},'%'))
+			</if>
+			<if test="orderType != null">
+				and o.order_type = #{orderType}
+			</if>
+			<if test="takeStyle != null">
+				and o.take_style = #{takeStyle}
+			</if>	
+			<if test=" dateStart != null and dateStart != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m-%d') >= #{dateStart} ]]>
+			</if>
+			<if test=" dateEnd != null and dateEnd != '' ">
+                <![CDATA[ and DATE_FORMAT(o.created_time, '%Y-%m-%d') <= #{dateEnd} ]]>
+			</if>
+			<if test="selectedStoreIds != null">
+					and o.`STORE_ID` IN 
+					<foreach collection="selectedStoreIds" item="selectedStoreId" separator="," open="(" close=")">
+            			#{selectedStoreId}
+        			</foreach>
+				</if>
+			and ((o.take_style = 0 and o.`STATUS` in (1,2,6)) OR (o.take_style = 1 and o.`STATUS` in (6)))
+		GROUP BY months
+		ORDER BY months DESC 
+	</select>
+	
+<update id="editStatus" parameterType="java.lang.Long">
+	update t_evm_order set `status`=2  where id=#{orderId}
+</update>
+
+</mapper>

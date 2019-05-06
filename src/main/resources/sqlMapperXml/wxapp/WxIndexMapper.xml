@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxIndexMapper">
+	<!-- 查询品牌列表 -->
+	<select id="queryBrandList" resultType="WxGoodsIndex" parameterType="PagingDto">
+		SELECT 
+		gb.`ID` `id`, 
+		gb.`NAME` `goodsName` 
+		from t_evm_goods_brand gb 
+		WHERE gb.`IS_DEL` = 0 
+		order by gb.`SEQ` asc
+	</select>
+	<!-- 查询分类列表 -->
+	<select id="queryClassifyList" resultType="WxGoodsIndex" parameterType="PagingDto">
+		SELECT 
+		gb.`ID` `id`, 
+		gb.`NAME` `goodsName` 
+		from t_evm_goods_classify gb 
+		WHERE gb.`IS_DEL` = 0 
+		order by gb.`SEQ` asc
+	</select>
+	
+	<!-- 查询活动列表 -->
+	<select id="queryActivityList" resultType="WxGoodsIndex" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        SELECT
+				g.`ID` `id`,
+				gs.`ID` `specId`,
+				a.`ID` `activityId`,
+				g.`GOODS_NAME` `goodsName`,
+				CASE a.`ACTIVITY_TYPE` WHEN 1 THEN sf2.`FILE_PATH` WHEN 2 THEN sf4.`FILE_PATH` WHEN 3 THEN sf3.`FILE_PATH` WHEN 4 THEN sf5.`FILE_PATH` WHEN 5 THEN sf6.`FILE_PATH` WHEN 6 THEN sf7.`FILE_PATH` WHEN 7 THEN sf8.`FILE_PATH` ELSE sf2.`FILE_PATH` END `activityImages`,
+				g.`GOODS_DESC` `goodsDesc`,
+				if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0, gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+				ag.`ACTIVITY_PRICE` `activityPrice`,
+				ag.`ACTIVITY_AMOUNT` `activityAmount`,
+				a.`ACTIVITY_TYPE` `activityType`,
+				IF(NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME`,0,1) `isStart`, 
+				date_format(NOW(),'%Y-%m-%d %H:%i:%s') `activityStartTime`,
+				date_format(a.`ACTIVITY_START_TIME`,'%Y-%m-%d %H:%i:%s') `activitySTime`,
+				date_format(a.`ACTIVITY_END_TIME`,'%Y-%m-%d %H:%i:%s') `activityEndTime`
+				from t_evm_activity a 
+				LEFT JOIN t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID` 
+				left join t_evm_goods_spec gs on gs.`ID` = ag.`GOODS_ID`
+				left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+				LEFT JOIN t_evm_static_files sf2 on sf2.`IS_DEL` = 0 and sf2.`RELATION_ID` = gs.`ID` and sf2.`FILE_TYPE` = 0 and sf2.`BIG_TYPE` = 2 and sf2.`SMALL_TYPE` = 3
+				LEFT JOIN t_evm_static_files sf3 on sf3.`IS_DEL` = 0 and sf3.`RELATION_ID` = gs.`ID` and sf3.`FILE_TYPE` = 0 and sf3.`BIG_TYPE` = 3 and sf3.`SMALL_TYPE` = 3
+				LEFT JOIN t_evm_static_files sf4 on sf4.`IS_DEL` = 0 and sf4.`RELATION_ID` = gs.`ID` and sf4.`FILE_TYPE` = 0 and sf4.`BIG_TYPE` = 4 and sf4.`SMALL_TYPE` = 3
+				LEFT JOIN t_evm_static_files sf5 on sf5.`IS_DEL` = 0 and sf5.`RELATION_ID` = gs.`ID` and sf5.`FILE_TYPE` = 0 and sf5.`BIG_TYPE` = 9 and sf5.`SMALL_TYPE` = 3
+				LEFT JOIN t_evm_static_files sf6 on sf6.`IS_DEL` = 0 and sf6.`RELATION_ID` = gs.`ID` and sf6.`FILE_TYPE` = 0 and sf6.`BIG_TYPE` = 10 and sf6.`SMALL_TYPE` = 3
+				LEFT JOIN t_evm_static_files sf7 on sf7.`IS_DEL` = 0 and sf7.`RELATION_ID` = gs.`ID` and sf7.`FILE_TYPE` = 0 and sf7.`BIG_TYPE` = 11 and sf7.`SMALL_TYPE` = 3
+				LEFT JOIN t_evm_static_files sf8 on sf8.`IS_DEL` = 0 and sf8.`RELATION_ID` = gs.`ID` and sf8.`FILE_TYPE` = 0 and sf8.`BIG_TYPE` = 12 and sf8.`SMALL_TYPE` = 3
+				WHERE a.`IS_DEL` = 0 
+						and ag.`IS_DEL` = 0 
+						and a.`STATUS` = 1 
+						and a.`ACTIVITY_TYPE` not in (5,6,7)
+						and NOW() &lt; a.`ACTIVITY_END_TIME` 
+				order by a.`ACTIVITY_START_TIME` ASC
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+	<!-- 查询商品列表 -->
+	<select id="queryGoodsList" resultType="WxGoodsIndex" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        SELECT
+				g.`ID` `id`,
+				gs.`SPEC_ID` `specId`,
+				g.`GOODS_NAME` `goodsName`,
+				sf.`FILE_PATH` `goodsImages`,
+				g.`GOODS_DESC` `goodsDesc`,
+				gs.`GOODS_PRICE` `goodsPrice`
+				from t_evm_goods g 
+				left join (select MIN(IF(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`)) `GOODS_PRICE`,gs.`ID` `SPEC_ID`,gs.`GOODS_ID` from t_evm_goods_spec gs where gs.`IS_DEL` = 0  GROUP BY gs.`GOODS_ID`) gs on gs.`GOODS_ID` = g.`ID` 
+				left join t_evm_goods_classify_dz gcdz on gcdz.`GOODS_ID` = g.`ID` 
+				LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+				WHERE g.`IS_DEL` = 0 
+				and g.`STATUS` = 1 	 
+				and g.`IS_SHOW` = 0 
+				<if test="brandId != null and brandId != 0">
+					and g.`BRAND_ID` = #{brandId}
+				</if>
+				<if test="classifyId != null and classifyId != 0">
+					and gcdz.`CLASSIFY_ID` = #{classifyId}
+				</if>
+				<if test="title != null and title != ''">
+					and g.`GOODS_NAME` like CONCAT('%',#{title},'%')
+				</if>
+				<if test="items != null and items.length > 0">
+					and gcdz.`CLASSIFY_ID` in 
+					<foreach collection="items" index="index" item="item" open="(" separator="," close=")">
+						<if test="item != 0 and item != '0'">
+							#{item}  
+						</if>
+			        </foreach>  
+				</if>
+				GROUP BY g.`ID`
+				<if test="isPreferred != null and isPreferred == 1">
+					order by g.`GOODS_SALES` desc
+				</if>
+				<if test="type != null and type == 1">
+					order by gs.`GOODS_PRICE` desc
+				</if>
+				<if test="type != null and type == 2">
+					order by gs.`GOODS_PRICE` asc
+				</if>
+				<if test="isPreferred != 1 and type != 1 and type != 2">
+					order by g.`SEQ` desc
+				</if>
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+		
+	</select>
+	<!-- 查询满减满赠活动信息 -->
+	<select id="queryActivityFull" resultType="WxGoodsIndex">
+		select 
+		a.`ID` `id`,
+		a.`ACTIVITY_TYPE` `activityType`,
+		NOW() `activityStartTime`,
+		a.`ACTIVITY_END_TIME` `activityEndTime`,
+		sf.`FILE_PATH` `activityImages` 
+			from t_evm_activity a
+			LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = a.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 110 and sf.`SMALL_TYPE` = 0
+			where a.`IS_DEL` = 0 
+			and a.`STATUS` = 1 
+			and a.`ACTIVITY_TYPE` in (5,6,7)
+			and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME`
+		ORDER BY a.`ACTIVITY_START_TIME` ASC
+	</select>
+	
+	<!-- 查询活动商品列表 -->
+	<select id="queryActivityDetail" resultType="WxGoodsIndex" parameterType="Integer">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+				select 
+				g.`ID` `id`,
+				gs.`SPEC_ID` `specId`,
+				g.`GOODS_NAME` `goodsName`,
+				gs.`GOODS_PRICE` `goodsPrice`,
+				sf.`FILE_PATH` `goodsImages` 
+					from t_evm_goods g
+					left join (select MIN(IF(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`)) `GOODS_PRICE`,gs.`ID` `SPEC_ID`,gs.`GOODS_ID` from t_evm_goods_spec gs where gs.`IS_DEL` = 0  GROUP BY gs.`GOODS_ID`) gs on gs.`GOODS_ID` = g.`ID` 
+					left join t_evm_activity_goods ag on ag.`GOODS_ID` = g.`ID`
+					left join t_evm_activity a on a.`ID` = ag.`ACTIVITY_ID` 
+					LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+					where g.`IS_DEL` = 0 and ag.`IS_DEL` = 0 and a.`IS_DEL` = 0
+					and g.`STATUS` = 1 
+					and a.`STATUS` = 1
+					and a.`ID` = #{activityId} 
+					and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME`
+					group by a.`ID`,ag.`GOODS_ID`
+				ORDER BY g.`ID` ASC 
+			) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+	
+	<!-- 查询热门商品列表 -->
+	<select id="queryGoodsHotList" resultType="WxGoodsIndex" parameterType="PagingDto">
+		SELECT
+		g.`ID` `id`,
+		gs.`SPEC_ID` `specId`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		gh.`SIZE` `size`
+		from t_evm_goods_hot gh 
+		LEFT JOIN t_evm_goods g on gh.`GOODS_ID` = g.`ID` 
+		left join (select MIN(IF(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`)) `GOODS_PRICE`,gs.`ID` `SPEC_ID`,gs.`GOODS_ID` from t_evm_goods_spec gs where gs.`IS_DEL` = 0  GROUP BY gs.`GOODS_ID`) gs on gs.`GOODS_ID` = g.`ID`
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+		WHERE gh.`IS_DEL` = 0 
+		and g.`STATUS` = 1 
+		and gh.`TYPE` = #{type}
+		order by gh.`SEQ` asc
+	</select>
+	<!-- 查询最后一次测试结果 -->
+	<select id="queryQuestResultId" resultType="WxQuestResult" parameterType="PagingDto">
+	select 
+    qr.`ID` `id`,
+		qr.`OPEN_ID` `openId`,
+		u.`USER_NAME` `userName`,
+		qc.`KEY` `key`,
+		qc.`NAME` `conclusionName`,
+		qr.`SCORE` `score`,
+		qr.`REAL_SCORE` `realScore`,
+		date_format(qr.`CREATED_TIME`,'%Y年%m月%d日 %H:%i') `createdTime`
+		from t_evm_quest_result qr 
+		left join  t_evm_quest_conclusion qc on qc.`ID` = qr.`CONCLUSION_ID` 
+		left join t_evm_wx_user u on u.`OPEN_ID` = qr.`OPEN_ID` 
+		where qr.`IS_DEL` = 0 
+		and qr.`OPEN_ID` = #{openId} 
+		ORDER BY qr.`CREATED_TIME` DESC 
+		LIMIT 1
+	</select>
+	
+	<!-- 查询默认弹窗 -->
+	<select id="queryPopConfig" resultType="WxPopConfig" parameterType="PagingDto">
+		select 
+		pc.`ID` `id`,
+		pc.`TITLE` `title`,
+		pc.`COUPON_ID` `couponId`,
+		(select count(uc.`ID`) from t_evm_wx_user_coupon uc where uc.OPEN_ID = #{openId} and uc.`COUPON_ID` = pc.`COUPON_ID`) `isReceive`,
+		pc.`TYPE` `type`,
+		pc.`URL` `url`,
+		pc.`TIMING` `timing`,
+		pc.`NOTE` `note`,
+		sf0.`FILE_PATH` `image1`,
+		sf1.`FILE_PATH` `image2`
+		from t_evm_pop_config pc 
+		left join t_evm_static_files sf0 on sf0.`RELATION_ID` = pc.`ID` and sf0.`FILE_TYPE` = 0 and sf0.`BIG_TYPE` = 7 and sf0.`SMALL_TYPE` = 0
+		left join t_evm_static_files sf1 on sf1.`RELATION_ID` = pc.`ID` and sf1.`FILE_TYPE` = 0 and sf1.`BIG_TYPE` = 7 and sf1.`SMALL_TYPE` = 1
+		where pc.`IS_DEL` = 0 and pc.`STATUS` = 0
+		ORDER BY pc.`CREATE_TIME` DESC 
+		LIMIT 1 
+	</select>
+
+	<!-- 2.0新增 -->
+	<!-- 查询最后一次测试结果 -->
+	<select id="queryQuestionResultByOpenId" resultType="WxQuestResult" parameterType="PagingDto">
+		select
+		qr.`ID` `id`,
+		qr.`OPEN_ID` `openId`,
+		u.`USER_NAME` `userName`,
+		qc.`KEY` `key`,
+		qc.`NAME` `conclusiZonName`,
+		qr.`SCORE` `score`,
+		qr.`REAL_SCORE` `realScore`,
+		date_format(qr.`CREATED_TIME`,'%Y年%m月%d日 %H:%i') `createdTime`
+		from t_evm_quest_result qr
+		left join  t_evm_quest_conclusion qc on qc.`ID` = qr.`CONCLUSION_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = qr.`OPEN_ID`
+		where qr.`IS_DEL` = 0
+		and qr.`OPEN_ID` = #{openId}
+		ORDER BY qr.`CREATED_TIME` DESC
+		LIMIT 1
+	</select>
+
+	<!-- 查询最后一次AI测试结果 -->
+	<select id="queryAITestResultByOpenId" resultType="WxAITestResult" parameterType="PagingDto">
+		select
+		qr.`ID` `id`,
+		qr.`OPEN_ID` `openId`,
+		u.`USER_NAME` `userName`,
+		qc.`KEY` `key`,
+		qc.`NAME` `conclusionName`,
+		qr.`SCORE` `score`,
+		qr.`REAL_SCORE` `realScore`,
+		date_format(qr.`CREATED_TIME`,'%Y年%m月%d日 %H:%i') `createdTime`
+		from t_evm_ai_test_result qr
+		left join  t_evm_ai_test_conclusion qc on qc.`ID` = qr.`CONCLUSION_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = qr.`OPEN_ID`
+		where qr.`IS_DEL` = 0
+		and qr.`OPEN_ID` = #{openId}
+		ORDER BY qr.`CREATED_TIME` DESC
+		LIMIT 1
+	</select>
+
+	<!-- 查询推荐商品信息 -->
+	<select id="queryTJGoods" resultType="com.bluekjg.wxapp.model.wxApp20.WxGoodsJCTJ" parameterType="java.lang.Integer">
+		SELECT
+		qg.ID,
+		g.GOODS_NAME as 'name',
+		'image' AS img,
+		TRUE AS selected,
+		gs.ID specId,
+		gs.GOODS_PRICE as price
+		FROM
+		t_evm_quest_goods qg
+		LEFT JOIN t_evm_goods g ON qg.GOODS_ID = g.ID
+		LEFT JOIN t_evm_goods_spec gs ON qg.id = gs.goods_id
+		WHERE qg.IS_DEL = 0 AND qg.GOODS_ID = #{goodsId}
+	</select>
+
+	<!-- 通过openId查询推荐商品ID -->
+	<select id="queryTJGoodsIDByOpenId" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT DISTINCT
+		qg.goods_id
+		FROM
+		t_evm_quest_goods qg
+		LEFT JOIN t_evm_quest_dimension qd ON qg.classify_id = qd.classify_id
+		LEFT JOIN t_evm_quest_result_detail qrd ON qd.ID = qrd.DIMENSION_ID
+		LEFT JOIN t_evm_quest_result qr ON qrd.result_id = qr.id
+		WHERE
+		qr.IS_DEL = 0
+		AND qr.OPEN_ID = #{openId}
+	</select>
+
+	<!-- 通过openId查询历史订单数量 -->
+	<select id="queryOrderCountByOpenId" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT
+		count(*)
+		FROM
+		t_evm_order
+		WHERE
+		open_id = #{openId}
+	</select>
+
+	<!-- 通过openId查询历史订单数量 -->
+	<select id="queryGoodsByOpenId" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT DISTINCT
+		od.goods_id
+		FROM
+		t_evm_order o
+		LEFT JOIN t_evm_order_detail od ON o.id = od.order_id
+		WHERE
+		open_id = #{openId}
+	</select>
+	<!-- 通过openId查询用户表有没有该用户信息 -->
+	<select id="queryCountFromUser" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT
+			count(*)
+
+			FROM t_evm_wx_user
+
+			WHERE OPEN_ID = #{openId} and MOBILE_NO is not NULL
+	</select>
+
+	<!-- 通过openId查询用户表有没有该用户信息的手机号 -->
+	<select id="queryMobileFromUser" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT
+		count(*)
+
+		FROM t_evm_wx_user
+
+		WHERE OPEN_ID = #{openId} AND MOBILE_NO is NULL
+	</select>
+
+
+
+
+
+
+</mapper>

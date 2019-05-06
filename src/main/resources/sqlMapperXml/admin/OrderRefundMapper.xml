@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.OrderRefundMapper">
+	<!-- 查询所有订单 -->
+	<select id="selectDataGrid" resultType="OrderRefund" parameterType="OrderRefund">
+        select 
+		rr.`ID` `id`,
+		rr.`STATUS` `status`,
+		o.`ORDER_NO` `orderNo`,
+		ot.`TRANS_NO` `transNo`,
+		rr.`REFUND_NO` `refundNo`,
+		rr.`REFUND_NAME` `refundName`,
+		o.`TOTAL_BALANCES` `totalBalances`,
+		ot.`BALANCES` `transBalances`,
+		ot.`REFUND_BALANCES` `refundBalances`,
+		rr.`TYPE` `type`,
+		if(rr.`TYPE` = 0,'退款','退货退款') `typeName`,
+		CASE rr.`STATUS` WHEN 1 THEN '退货申请' WHEN 2 THEN '待收货' WHEN 3 THEN '待退款' WHEN 4 THEN '已退款' WHEN 11 THEN '拒绝退货' WHEN 12 THEN '拒绝退款' END `statusName`,
+		rr.`DESC` `desc`,
+		rr.`AUDIT_DESC` `auditDesc`,
+		rra.`EXPRESS_NO` `expressNo`,
+		rra.`EXPRESS_NAME` `expressName`,
+		rrd1.`GOODS_NUMS` `goodsNum`,
+		rr.`BALANCES` `balances`,
+		u.`NICK_NAME` `nickName`,
+		u.`USER_NAME` `userName`,
+		u.`MOBILE_NO` `mobileNo`,
+		if(rr.`TYPE` = 2,if(rr.`STATUS` in (3,4),'已入库','未入库'),'') `isRk`,
+		DATE_FORMAT(rr.`CREATED_TIME`, '%Y-%m-%d') `createdTime`,
+		if(rr.`STATUS` = 4,DATE_FORMAT(rr.`LAST_MODIFIED_TIME`, '%Y-%m-%d %H:%m:%s'),'') `lastModifiedTime`,
+		IF(o.`STORE_ID` = 0,'小程序',s.`STORE_NAME`) `storeName` 
+		from t_evm_order_refund rr 
+		left join t_evm_order_refund_address rra on rra.`REFUND_ID` = rr.`ID` 
+		left join (
+			select sum(rrd.`GOODS_NUMS`) `GOODS_NUMS`,rrd.`REFUND_ID` from t_evm_order_refund_detail rrd group by rrd.`REFUND_ID` 
+		) rrd1 on rrd1.`REFUND_ID` = rr.`ID` 
+		left join t_evm_order o on o.`ID` = rr.`ORDER_ID` 
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+		left join t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID` 
+		left join t_evm_store s on s.`ID` = o.`STORE_ID` 
+		where rr.`IS_DEL` = 0 
+		<if test="userName != null and userName != ''">
+			and (u.`USER_NAME` like CONCAT('%',#{userName},'%')
+			or u.`NICK_NAME` like CONCAT('%',#{userName},'%')
+			or u.`MOBILE_NO` like CONCAT('%',#{userName},'%')
+			)
+		</if>
+        <if test="orderNo != null and orderNo != ''">
+			and (ot.TRANS_NO like CONCAT('%',#{orderNo},'%')
+			or o.ORDER_NO like CONCAT('%',#{orderNo},'%')
+			)
+		</if>
+		<if test="storeIds != null">
+			and o.`STORE_ID` IN 
+			<foreach collection="storeIds" item="storeId" separator="," open="(" close=")">
+            	#{storeId}
+        	</foreach>
+		</if>
+		<if test="status != null ">
+			and rr.`STATUS` = #{status}
+		</if>
+		<if test="type != null ">
+			and rr.`TYPE` = #{type}
+		</if>
+		<if test="isRk == '0'">
+			and rr.`TYPE` = 2 and rr.`STATUS` in (3,4)
+		</if>
+		<if test="isRk == '1'">
+			and rr.`TYPE` = 2 and rr.`STATUS` not in (3,4)
+		</if>
+        order by rr.`CREATED_TIME` desc    
+    </select>
+	<!-- 查询退货地址 -->
+	<select id="selectAdminAddress" resultType="Address">
+		select 
+		aa.`NAME` `name`,
+		aa.`MOBILE_NO` `mobileNo`,
+		aa.`PROVINCE` `province`,
+		aa.`CITY` `city`,
+		aa.`AREA` `area`,
+		a0.`NAME` `provinceName`,
+		a1.`NAME` `cityName`,
+		a2.`NAME` `areaName`,
+		aa.`DETAIL_ADDRESS` `addressDetail` 
+		from t_evm_admin_address aa 
+		left join t_evm_area a0 on a0.`ID` = aa.`PROVINCE` 
+		left join t_evm_area a1 on a1.`ID` = aa.`CITY` 
+		left join t_evm_area a2 on a2.`ID` = aa.`AREA` 
+		where aa.`IS_DEL` = 0 
+		order by aa.`CREATED_TIME` desc 
+	</select>
+	
+	<select id="selectAreasList" resultType="Address" parameterType="Integer">
+        select 
+	      	a.id,a.name
+	      from t_evm_area a 
+	      where a.`IS_DEL` = 0
+	      and a.`pid` = #{id}
+	      order by a.`CREATED_TIME` asc
+   </select> 
+   <select id="selectRefundAddress" resultType="Address" parameterType="Integer">
+   		select 
+   		ra.`REFUND_ID` `refundId`,
+   		ra.`EXPRESS_NO` `expressNo`,
+   		ra.`EXPRESS_NAME` `expressName`,
+   		ra.`NAME` `name`,
+   		ra.`MOBILE_NO` `mobileNo`,
+   		ra.`PROVINCE` `province`,
+   		ra.`CITY` `city`,
+   		ra.`AREA` `area`,
+   		ra.`DETAIL_ADDRESS` `addressDetail`
+   		from t_evm_order_refund_address ra 
+   		where ra.`REFUND_ID` = #{refundId}
+   </select>
+   <insert id="insertAdminAddress" parameterType="Address">
+   		insert into t_evm_admin_address (`NAME`,`MOBILE_NO`,`PROVINCE`,`CITY`,`AREA`,`DETAIL_ADDRESS`)
+   		values (#{name},#{mobileNo},#{province},#{city},#{area},#{addressDetail})
+   </insert>
+   <insert id="insertRefundAddress" parameterType="Address">
+   		insert into t_evm_order_refund_address (`REFUND_ID`,`NAME`,`MOBILE_NO`,`PROVINCE`,`CITY`,`AREA`,`DETAIL_ADDRESS`)
+   		values (#{refundId},#{name},#{mobileNo},#{province},#{city},#{area},#{addressDetail})
+   </insert>
+</mapper>

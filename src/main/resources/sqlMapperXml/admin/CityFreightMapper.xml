@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.CityFreightMapper">
+
+	<!-- 查询地区运费信息 -->
+	<select id="selectDataGrid" parameterType="CityFreight" resultType="CityFreight">
+		SELECT 
+			cf.`ID` `id`,
+			cf.`PROVINCE` `province`,
+			a.`NAME` `provinceName`,
+			cf.`MONEY` `money`,
+			cf.`EXCEED_MONEY` `exceedMoney`,
+			DATE_FORMAT(cf.`CREATED_TIME`, '%Y-%m-%d %H:%i:%s') `createdTime` 
+		FROM t_evm_city_freight cf 
+		left join t_evm_area a on a.`ID` = cf.`PROVINCE` 
+		WHERE
+			ifnull(cf.IS_DEL,0) = 0 
+			<if test="provinceName != null and provinceName != ''">
+				and a.`NAME` like CONCAT('%',#{provinceName},'%')
+			</if>
+			order by cf.`CREATED_TIME` desc
+	</select>
+</mapper>

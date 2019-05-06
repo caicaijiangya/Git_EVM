@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxTestTaskMapper">
+	<!-- 完成订单 -->
+	<select id="completeOrder" resultType="WxOrder">
+		select o.`ID` `id`,o.`STATUS` `status` from t_evm_order o 
+		where o.`IS_DEL` = 0 and  o.`STATUS` = 2  
+		and NOW() > date_add(o.`LAST_MODIFIED_TIME`, interval 10 day)
+	</select>
+	<!-- 查询待结束订单 -->
+	<select id="queryCancelOrder" resultType="Integer">
+		select `ID` from t_evm_order where `IS_DEL` = 0 and  `STATUS` = 0  and NOW() > date_add(`CREATED_TIME`, interval 30 MINUTE) 
+	</select>
+	<!-- 结束订单 -->
+	<update id="cancelOrder">
+		UPDATE t_evm_order set `STATUS` = 5 ,`LAST_MODIFIED_TIME` = NOW()
+		where `IS_DEL` = 0 and  `STATUS` = 0  and NOW() > date_add(`CREATED_TIME`, interval 30 MINUTE) 
+	</update>
+	<!-- 结束活动 -->
+	<update id="cancelActivity">
+		update t_evm_activity set `STATUS` = 2,`LAST_MODIFIED_TIME` = NOW() 
+		where `STATUS` = 1 
+		and NOW() > `ACTIVITY_END_TIME` 
+	</update>
+	<!-- 结束活动的商品列表 -->
+	<select id="selectActivityGoods" resultType="WxActivityFull">
+		select 
+		a.`ID` `id`,
+		ag.`GOODS_ID` `goodsId`,
+		ifnull(ag.`ACTIVITY_AMOUNT`,0) `amount`,
+		ag.`STORE_ID` `storeId` 
+		from t_evm_activity a 
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID` 
+		where a.`IS_DEL` = 0 and ag.`IS_DEL` = 0 and a.`ACTIVITY_TYPE` &lt; 5 and a.`STATUS` = 1 and NOW() > a.`ACTIVITY_END_TIME` 
+	</select>
+	<!-- 结束活动的赠品列表 -->
+	<select id="selectActivityGift" resultType="WxActivityFull">
+		select 
+		a.`ID` `id`,
+		af.`GOODS_ID` `goodsId`,
+		af.`GOODS_NUM` `goodsNum`,
+		af.`AMOUNT` `amount`,
+		af.`STORE_ID` `storeId` 
+		from t_evm_activity a 
+		left join t_evm_activity_fullgift af on af.`ACTIVITY_ID` = a.`ID` 
+		where a.`IS_DEL` = 0 and a.`ACTIVITY_TYPE` = 6 and a.`STATUS` = 1 and NOW() > a.`ACTIVITY_END_TIME` 
+	</select>
+	
+	<!-- 结束拼团 -->
+	<update id="cancelCollage">
+		update t_evm_collage_goods set `STATUS` = 2,`LAST_MODIFIED_TIME` = NOW() 
+		where `STATUS` = 0 
+		and NOW() > `END_TIME` 
+	</update>
+	<!-- 结束拼团订单 -->
+	<update id="cancelCollageOrder">
+		update t_evm_order  set `STATUS` = 3,`LAST_MODIFIED_TIME` = NOW() 
+		where `IS_DEL` = 0 and `ID` in (
+			select distinct cgd.`ORDER_ID` 
+			from t_evm_collage_goods  cg 
+			left join t_evm_collage_goods_detail cgd on cgd.`COLLAGE_ID` = cg.`ID` 
+			where cg.`IS_DEL` = 0 
+			and cg.`STATUS` = 0 
+			and NOW() > cg.`END_TIME`
+			and cgd.`STATUS` = 1 
+		)
+	</update>
+	<select id="queryCancelCollage" resultType="WxOrderRefund">
+		select 
+		t.`ORDER_ID` `orderId`,
+		t.`TRANS_NO` `transNo`,
+		t.`REFUND_NO` `refundNo`,
+		t.`BALANCES` `balances`,
+		t.`BALANCES` `totalBalances`,
+		t.`STATUS` `status` 
+		from t_evm_order_trans t 
+		where t.`IS_DEL` = 0 and t.`ORDER_ID` in (
+			select distinct cgd.`ORDER_ID` 
+			from t_evm_collage_goods  cg 
+			left join t_evm_collage_goods_detail cgd on cgd.`COLLAGE_ID` = cg.`ID` 
+			where cg.`IS_DEL` = 0 
+			and cg.`STATUS` = 0 
+			and NOW() &gt; cg.`END_TIME`
+			and cgd.`STATUS` = 1 
+		)
+	</select>
+	<update id="updateCancelCollage" parameterType="WxOrderRefund">
+		update t_evm_order_trans set `REFUND_BALANCES` = #{balances},`STATUS` = 3,`LAST_MODIFIED_TIME` = NOW() where `ORDER_ID` = #{orderId} 
+	</update>
+	
+	<!-- 优惠券批量失效 -->
+	<update id="updateUserCouponStatus">
+		update t_evm_wx_user_coupon uc 
+		left join t_evm_coupon c on c.`ID` = uc.`COUPON_ID` 
+		set uc.`STATUS` = 2,
+		uc.`LAST_MODIFIED_TIME` = NOW() 
+		where  uc.`IS_DEL` = 0 
+		and uc.`STATUS` = 0 
+		and NOW() &gt;= if(c.`DUE_TYPE` = 0,c.`DUE_TIME`,date_add(uc.`CREATED_TIME`, interval c.`DUE_TIME` day))
+	</update>
+</mapper>

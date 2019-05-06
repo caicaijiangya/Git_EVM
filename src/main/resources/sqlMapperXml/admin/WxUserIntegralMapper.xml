@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.WxUserIntegralMapper">
+
+	<!-- 查询会员用户积分列表 -->
+	<select id="queryUserIntegralList" resultType="WxUserInfo" parameterType="WxUserInfo">
+		SELECT 
+			u.id,
+			s.store_name storeName,
+			u.open_id openId,
+			u.user_name userName,
+			u.nick_name nickName,
+			u.money,
+			u.INTEGRAL `integral`,
+			u.IS_INTEGRAL `isIntegral`,
+			con.`INTEGRAL` `conIntegral`,
+			total.`INTEGRAL` `totalIntegral`,
+			current.`INTEGRAL` `currentIntegral`,
+			u.CREATED_TIME createdTime,
+			u.IS_DEL isDel,
+			u.note 
+		FROM t_evm_wx_user u 
+		LEFT JOIN t_evm_store s ON s.id = u.store_id		
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &gt; 0
+				<if test="startTime != null and startTime != ''">
+					and uil.`CREATED_TIME` &gt;= #{startTime} 
+				</if>
+				<if test="endTime != null and endTime != ''">
+					and uil.`CREATED_TIME` &lt;= #{endTime} 
+				</if>
+				GROUP BY uil.`OPEN_ID`
+		) current on current.`OPEN_ID` = u.`OPEN_ID`
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &lt; 0 
+				GROUP BY uil.`OPEN_ID` 
+		) con on con.`OPEN_ID` = u.`OPEN_ID` 
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.INTEGRAL &gt; 0 
+				GROUP BY uil.`OPEN_ID` 
+		) total on total.`OPEN_ID` = u.`OPEN_ID` 
+		WHERE u.is_del = 0
+			<if test="nickName != null and nickName != ''">
+				and (
+					u.nick_name like CONCAT('%',#{nickName},'%')  
+					or u.mobile_no like CONCAT('%',#{nickName},'%')  
+					or u.user_name like CONCAT('%',#{nickName},'%')
+				)
+			</if>
+			<if test="userType != null">
+				and u.user_type = #{userType}
+			</if>
+			order by u.CREATED_TIME desc
+	</select>
+	<!-- 查询积分明细列表 -->
+	<select id="queryUserIntegralDetailList" resultType="WxUserInfo" parameterType="WxUserInfo">
+		SELECT 
+			u.`NICK_NAME` `nickName`,
+			il.`TITLE` `title`,
+			il.`INTEGRAL` `integral`,
+			il.`TYPE` `type`,
+			il.`NOTE` `note`,
+			il.`STATUS` `status`,
+			il.CREATED_TIME `createdTime`
+		FROM t_evm_wx_user_integral_log il 
+		LEFT JOIN t_evm_wx_user u ON u.`OPEN_ID` = il.`OPEN_ID`
+		WHERE il.`OPEN_ID` = #{openId} 
+		order by il.CREATED_TIME desc
+	</select>
+	<!-- 修改积分信息 -->
+	<update id="updateUserIntegral" parameterType="WxUserInfo">
+		update t_evm_wx_user set 
+		`IS_INTEGRAL` = #{isIntegral},
+		`LAST_MODIFIED_TIME` = NOW()
+		where `ID` = #{id} 
+	</update>
+	<!-- 导出积分 -->
+	<select id="downLoadIntegral" resultType="java.util.Map" parameterType="WxUserInfo">
+		SELECT 
+			u.id,
+			s.store_name storeName,
+			u.open_id openId,
+			u.mobile_no mobileNo,
+			u.user_name userName,
+			u.nick_name nickName,
+			u.`CODE` `code`,
+			CASE u.`IS_INTEGRAL` WHEN 0 THEN '正常' WHEN 1 THEN '禁用' END `isIntegral`,
+			u.INTEGRAL `integral`,
+			u.IS_INTEGRAL `isIntegral`,
+			con.`INTEGRAL` `conIntegral`,
+			con1.`INTEGRAL` `conIntegral1`,
+			total.`INTEGRAL` `totalIntegral`,
+			current.`INTEGRAL` `currentIntegral`,
+			eff0.`INTEGRAL` `dIntegral`,
+			eff1.`INTEGRAL` `cIntegral`,
+			<if test="endTime != null and endTime != ''">
+			fail.`INTEGRAL` `failIntegral`,
+			</if>
+			CONCAT(u.country,' ',u.province,' ',u.city) country
+		FROM t_evm_wx_user u 
+		LEFT JOIN t_evm_store s ON s.id = u.store_id		
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &gt; 0
+				<if test="startTime != null and startTime != ''">
+					and uil.`CREATED_TIME` &gt;= #{startTime} 
+				</if>
+				<if test="endTime != null and endTime != ''">
+					and uil.`CREATED_TIME` &lt;= #{endTime} 
+				</if>
+				GROUP BY uil.`OPEN_ID`
+		) current on current.`OPEN_ID` = u.`OPEN_ID`
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &lt; 0 
+				GROUP BY uil.`OPEN_ID` 
+		) con on con.`OPEN_ID` = u.`OPEN_ID` 
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.INTEGRAL &gt; 0 
+				GROUP BY uil.`OPEN_ID` 
+		) total on total.`OPEN_ID` = u.`OPEN_ID` 
+		
+		
+		
+		left join (
+			select SUM((uil.`INTEGRAL` * -1)) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &lt; 0 
+				<if test="startTime != null and startTime != ''">
+					and uil.`CREATED_TIME` &gt;= #{startTime} 
+				</if>
+				<if test="endTime != null and endTime != ''">
+					and uil.`CREATED_TIME` &lt;= #{endTime} 
+				</if>
+				GROUP BY uil.`OPEN_ID`
+		) con1 on con1.`OPEN_ID` = u.`OPEN_ID`
+		
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &gt; 0 
+				and DATE_FORMAT(uil.`CREATED_TIME`,'%Y')=DATE_FORMAT(DATE_ADD(NOW(),INTERVAL -1 YEAR), '%Y')
+				GROUP BY uil.`OPEN_ID`
+		) eff0 on eff0.`OPEN_ID` = u.`OPEN_ID`
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &gt; 0 
+				and DATE_FORMAT(uil.`CREATED_TIME`,'%Y')=DATE_FORMAT(NOW(), '%Y')
+				GROUP BY uil.`OPEN_ID`
+		) eff1 on eff1.`OPEN_ID` = u.`OPEN_ID`
+		
+		<if test="endTime != null and endTime != ''">
+		left join (
+			select SUM(uil.`INTEGRAL`) `INTEGRAL`,uil.`OPEN_ID` from t_evm_wx_user_integral_log uil 
+				where uil.`STATUS` = 0 and uil.INTEGRAL &gt; 0 
+				and DATE_FORMAT(uil.`CREATED_TIME`,'%Y')=DATE_FORMAT(DATE_ADD(#{endTime},INTERVAL -2 YEAR), '%Y')
+				GROUP BY uil.`OPEN_ID`
+		) fail on fail.`OPEN_ID` = u.`OPEN_ID` 
+		</if>
+		WHERE u.is_del = 0
+			<if test="nickName != null and nickName != ''">
+				and (
+					u.nick_name like CONCAT('%',#{nickName},'%')  
+					or u.mobile_no like CONCAT('%',#{nickName},'%')  
+					or u.user_name like CONCAT('%',#{nickName},'%')
+				)
+			</if>
+			<if test="userType != null">
+				and u.user_type = #{userType}
+			</if>
+			order by u.CREATED_TIME desc
+	</select>
+	<!-- 导出积分明细  -->
+	<select id="downLoadIntegralDetail" resultType="java.util.Map" parameterType="WxUserInfo">
+		select 
+		uil.`ID` `id`,
+		u.`OPEN_ID` `openId`,
+		s.`STORE_NAME` `storeName`,
+		u.`CODE` `code`,
+		u.`USER_NAME` `userName`,
+		u.`NICK_NAME` `nickName`,
+		u.`MOBILE_NO` `mobileNo`,
+		uil.`TITLE` `title`,
+		uil.`INTEGRAL` `integral`,
+		CASE uil.`TYPE` 
+		WHEN -1 THEN '退货返还' 
+		WHEN 0 THEN '签到' 
+		WHEN 1 THEN '兑换' 
+		WHEN 2 THEN '会员注册' 
+		WHEN 3 THEN '个人资料完善' 
+		WHEN 4 THEN '消费积分' 
+		WHEN 5 THEN '分享积分' 
+		WHEN 6 THEN '邀请好友' 
+		WHEN 10 THEN '系统赠送' 
+		END `type`,
+		uil.`NOTE` `note`,
+		CONCAT(u.country,' ',u.province,' ',u.city) `country`,
+		CASE uil.`STATUS` WHEN 0 THEN '正常' WHEN 1 THEN '清零' WHEN 2 THEN '异常' END `status`,
+		DATE_FORMAT(uil.`CREATED_TIME`, '%Y-%m-%d %H:%i:%s') `createdTime`,
+		CONCAT(DATE_FORMAT(DATE_ADD(uil.`CREATED_TIME`,INTERVAL 2 YEAR), '%Y'),'-01-01') `failTime` 
+		from t_evm_wx_user_integral_log uil    
+		left join t_evm_wx_user u on u.`OPEN_ID` = uil.`OPEN_ID` 
+		LEFT JOIN t_evm_store s ON s.id = u.store_id
+        WHERE 1=1 
+        <if test="openId != null">
+        	and uil.`OPEN_ID` = #{openId} 
+        </if>
+        <if test="startTime != null and startTime != ''">
+			and uil.`CREATED_TIME` &gt;= #{startTime} 
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and uil.`CREATED_TIME` &lt;= #{endTime} 
+		</if>
+	</select> 
+</mapper>

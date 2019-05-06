@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.ActivityMapper">
+<!-- 查询所有活动 -->
+	<select id="selectDataGrid" resultType="Activity" parameterType="Activity">
+        SELECT
+            id,
+            title,
+            ACTIVITY_TYPE activityType,
+            ACTIVITY_START_TIME activityStartTime,
+            ACTIVITY_END_TIME	activityEndTime,
+            status,
+            created_time createdTime
+        FROM
+           t_evm_activity 	    
+        WHERE
+            is_del = 0
+            <if test="title !=null and title!=''">
+            	and title like CONCAT('%',#{title},'%')
+            </if>
+			<if test="activityType !=null ">
+				and ACTIVITY_TYPE = #{activityType}
+			</if>
+			<if test="status !=null ">
+				and `status` = #{status}
+			</if>
+			<if test=" dateStart != null and dateStart != '' ">
+                <![CDATA[ and DATE_FORMAT(activity_start_time, '%Y-%m-%d') <= #{dateStart} ]]>
+			</if>
+			<if test=" dateEnd != null and dateEnd != '' ">
+                <![CDATA[ and DATE_FORMAT(activity_end_time, '%Y-%m-%d') >= #{dateEnd} ]]>
+			</if>
+        order by ID desc    
+    </select>
+<!-- 查询可以指派给活动的商品 -->
+	<select id="queryGoodsList" resultType="Activity" parameterType="Activity">
+        SELECT
+        	<if test="activityType == 5 or activityType == 6 or activityType == 7">
+        		g.id,
+        	</if>
+			<if test="activityType != 5 and activityType != 6 and activityType != 7">
+				gs.id,
+				gs.`SPEC_NAME` `specName`,
+			</if>
+			g.goods_name goodsName,
+			(
+				<if test="activityType != 5 and activityType != 6 and activityType != 7">
+				SELECT f.FILE_PATH FROM t_evm_static_files f WHERE f.RELATION_ID = gs.id and f.file_type = 0 AND f.big_type = 0 AND f.small_type = 3
+				</if>
+				<if test="activityType == 5 or activityType == 6 or activityType == 7">
+				SELECT f.FILE_PATH FROM t_evm_static_files f WHERE f.RELATION_ID = g.id and f.file_type = 0 AND f.big_type = 0 AND f.small_type = 0
+				</if>
+			)filePath,
+			gb.`name`
+			<if test="activityType != 5 and activityType != 6 and activityType != 7">
+			from t_evm_goods_spec gs 
+			left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+				<if test="storeId != null and storeId != 0">
+					left join t_evm_store_goods sg on sg.`SPEC_ID` = gs.`ID`
+				</if>
+			</if>
+			<if test="activityType == 5 or activityType == 6 or activityType == 7">
+			from t_evm_goods g 
+				<if test="storeId != null and storeId != 0">
+					left join t_evm_store_goods sg on sg.`GOODS_ID` = g.`ID`
+				</if>
+			</if>
+			LEFT JOIN t_evm_goods_brand gb ON g.BRAND_ID = gb.ID 
+			where gb.is_del=0
+			and g.IS_DEL = 0
+			AND g.`STATUS` = 1 
+			<if test="activityType != 5 and activityType != 6 and activityType != 7">
+			and gs.IS_DEL = 0
+			AND gs.ID 
+			</if>
+			<if test="activityType == 5 or activityType == 6 or activityType == 7">
+			AND g.ID 
+			</if>
+			not in(
+					SELECT ag.goods_id FROM t_evm_activity_goods ag
+					left join t_evm_activity a on ag.activity_id = a.id
+					WHERE ag.is_del=0  and a.`ID` = #{id}
+					and ag.`STORE_ID` = #{storeId}
+					)
+            <if test="name !=null and name !=''">
+            	and (g.goods_name like CONCAT('%',#{name},'%')
+            	<if test="activityType != 5 and activityType != 6 and activityType != 7">
+            	or gs.GOODS_CODE like CONCAT('%',#{name},'%')
+            	or gs.SPEC_NAME like CONCAT('%',#{name},'%')
+            	</if>
+            	or gb.`name` like CONCAT('%',#{name},'%'))
+            </if>
+            <if test="storeId != null and storeId != 0">
+            	and sg.`STORE_ID` = #{storeId}
+            </if>
+            <if test="brandId != null">
+            	and gb.`ID` = #{brandId}
+            </if>
+            <if test="activityType != 5 and activityType != 6 and activityType != 7">
+	         GROUP BY gs.`ID`
+	         </if>
+	         <if test="activityType == 5 or activityType == 6 or activityType == 7">
+			GROUP BY g.`ID`
+			</if>
+        order by g.ID desc    
+    </select>
+<!-- 查询已指派的记录 -->
+    <select id="queryActivityGoodsList" resultType="Activity" parameterType="Activity">
+    	SELECT 
+    	    ag.`ID` `id`,
+    	    ag.`GOODS_ID` `goodsId`,
+			g.`GOODS_NAME` `goodsName`,
+			<if test="activityType != 5 and activityType != 6 and activityType != 7">
+			gs.`SPEC_NAME` `specName`,
+			if(ag.`STORE_ID` = 0,gs.`GOODS_AMOUNT`,sg.`GOODS_AMOUNT`) `goodsAmount`,
+			</if>
+			<if test="activityType == 5 or activityType == 6 or activityType == 7">
+			0 `goodsAmount`,
+			</if>
+			(
+				SELECT
+					f.`FILE_PATH`
+				FROM
+					t_evm_static_files f
+				WHERE
+					f.`RELATION_ID` = ag.`GOODS_ID`
+					and f.`FILE_TYPE` = 0
+					AND f.`BIG_TYPE` = ${actType}
+					AND f.`SMALL_TYPE` = 0
+		)  `filePath`,
+			ag.`ACTIVITY_AMOUNT` `activityAmount`,
+			ag.`ACTIVITY_PRICE`	`activityPrice`,
+			ag.`BUY_NUM` `buyNum`,
+			gb.`NAME` `name`,
+			a.`ACTIVITY_TYPE` `activityType`
+		FROM t_evm_activity_goods ag
+		<if test="activityType != 5 and activityType != 6 and activityType != 7">
+		left join t_evm_store_goods sg on sg.`SPEC_ID` = ag.`GOODS_ID` and sg.`STORE_ID` = ag.`STORE_ID` 
+		</if>
+		<if test="activityType != 5 and activityType != 6 and activityType != 7">
+		left join t_evm_goods_spec gs on gs.`ID` = ag.`GOODS_ID`
+		LEFT JOIN t_evm_goods g ON g.`ID` = gs.`GOODS_ID`
+		</if>
+		<if test="activityType == 5 or activityType == 6 or activityType == 7">
+		LEFT JOIN t_evm_goods g ON g.`ID` = ag.`GOODS_ID`
+		</if>
+		LEFT JOIN t_evm_goods_brand gb ON g.`BRAND_ID` = gb.`ID`	
+		left join t_evm_activity a on a.`ID` = ag.`ACTIVITY_ID`
+		WHERE 
+			a.is_del=0
+			and ag.is_del=0
+			and ag.`ACTIVITY_ID` = ${id}
+			and ag.`STORE_ID` = #{storeId} 
+		<if test="name != null and name != ''">
+			and (
+				g.`GOODS_NAME` like CONCAT('%',#{name,jdbcType=VARCHAR},'%') or 
+				<if test="activityType != 5 and activityType != 6 and activityType != 7">
+				gs.`GOODS_CODE` like CONCAT('%',#{name,jdbcType=VARCHAR},'%') or 
+				gs.`SPEC_NAME` like CONCAT('%',#{name,jdbcType=VARCHAR},'%') or 
+				</if>
+				gb.`NAME` like CONCAT('%',#{name,jdbcType=VARCHAR},'%'))
+		</if>
+    </select>    
+    
+<!-- 指派商品到关联表 -->
+	<insert id="appointGoods" parameterType="java.util.List">
+        insert into t_evm_activity_goods
+        (
+        ACTIVITY_ID,
+        GOODS_ID,
+        STORE_ID
+		)
+		VALUES  
+    	<foreach collection="list" item="ag" index="index" separator=",">  
+            (
+            #{ag.activityId}, 
+            #{ag.goodsId},
+            #{ag.storeId}
+            )     
+        </foreach>
+     </insert> 
+<!-- 取消已指派的商品 --> 
+	<update id="updateActivityGoods" parameterType="ActivityGoods">
+		update
+			t_evm_activity_goods
+		set is_del=1	
+		WHERE
+			id =#{id}
+	</update> 
+	
+	<!-- 删除活动--> 
+	<update id="updateActivityIsDel" parameterType="java.lang.Integer">
+		update
+			t_evm_activity
+		set is_del=1	
+		WHERE
+			id =#{id}
+	</update> 
+	
+	<!-- 取消指派恢复商品库存 -->
+	<update	id="updateGoodsAmount" parameterType="ActivityGoods">
+		update t_evm_goods_spec set goods_amount = goods_amount + #{activityAmount},
+				GOODS_REM_AMOUNT=GOODS_REM_AMOUNT + #{activityAmount}
+		where id = #{goodsId}		
+	</update>
+	<!-- 查询一个时间段类是否存在相同类型的活动 -->
+	<select id="queryActivityList" parameterType="Activity" resultType="java.lang.Integer">
+		select count(*) from t_evm_activity
+		where is_del=0 and activity_type=#{activityType} and activity_end_time >= now()
+	</select>
+	
+	<select id="queryActivityGoodsAmountList" resultType="ActivityGoods" parameterType="java.lang.Integer">
+		SELECT ag.`goods_id` goodsId,ag.`activity_amount` activityAmount  
+		FROM t_evm_activity_goods ag where ag.`ACTIVITY_ID` = #{id} 
+	</select>
+	<delete id="deleteActivityStore" parameterType="java.lang.Integer">
+		delete from t_evm_activity_store where `ACTIVITY_ID` = #{id}
+	</delete>
+	<!-- 添加活动门店 -->
+	<insert id="insertActivityStore" parameterType="Activity">
+		insert into t_evm_activity_store(`ACTIVITY_ID`,`STORE_ID`)
+		values (#{id},#{storeId})
+	</insert>
+	
+	<select id="selectActivityStore" resultType="Map" parameterType="java.lang.Integer">
+		select 
+		a.`STORE_ID` `id`, 
+		if(a.`STORE_ID` = 0,'小程序',s.`STORE_NAME`) `storeName`
+		from t_evm_activity_store a 
+		left join t_evm_store s on s.`ID` = a.`STORE_ID`
+		where a.`ACTIVITY_ID` = #{id}
+	</select>
+	<select id="selectActivityFull" resultType="ActivityFull" parameterType="java.lang.Integer">
+		select 
+		af.`ACTIVITY_ID` `activityId`,
+		af.`FULL_PRICE` `fullPrice`,
+		af.`PRE_PRICE` `prePrice` 
+		from t_evm_activity_full af 
+		where af.`ACTIVITY_ID` = #{id}
+	</select>
+	<select id="selectActivityDiscount" resultType="ActivityFull" parameterType="java.lang.Integer">
+		select 
+		f.`ACTIVITY_ID` `activityId`,
+		f.`FULL_PRICE` `fullPrice`,
+		f.`PRE_PRICE` `prePrice` 
+		from t_evm_activity_discount f 
+		where f.`ACTIVITY_ID` = #{id}
+	</select>
+	
+	<delete id="deleteActivityFull" parameterType="java.lang.Integer">
+		delete from t_evm_activity_full where `ACTIVITY_ID` = #{id}
+	</delete>
+	<insert id="insertActivityFull" parameterType="ActivityFull">
+		insert into t_evm_activity_full(`ACTIVITY_ID`,`FULL_PRICE`,`PRE_PRICE`)
+		values (#{activityId},#{fullPrice},#{prePrice})
+	</insert>
+	
+	<delete id="deleteActivityDiscount" parameterType="java.lang.Integer">
+		delete from t_evm_activity_discount where `ACTIVITY_ID` = #{id}
+	</delete>
+	<insert id="insertActivityDiscount" parameterType="ActivityFull">
+		insert into t_evm_activity_discount(`ACTIVITY_ID`,`FULL_PRICE`,`PRE_PRICE`)
+		values (#{activityId},#{fullPrice},#{prePrice})
+	</insert>
+	<!-- 活动标签 -->
+	<select id="selectActivityLabel" resultType="java.util.Map" parameterType="java.lang.Integer">
+		select `ID` `id`,`NAME` `name` from t_evm_activity_label where `ACTIVITY_ID` = #{id} order by `SEQ` asc 
+	</select>
+	<delete id="deleteActivityLabel" parameterType="java.lang.Integer">
+		delete from t_evm_activity_label where `ACTIVITY_ID` = #{id}
+	</delete>
+	<insert id="insertActivityLabel" parameterType="java.lang.String">
+		insert into t_evm_activity_label(`ACTIVITY_ID`,`NAME`,`SEQ`)
+		values (#{id},#{name},#{seq})
+	</insert>
+	
+	
+	<!-- 活动门店列表 -->
+	<select id="selectStoreDataGrid" resultType="Activity" parameterType="Activity">
+        SELECT
+            aa.`ACTIVITY_ID` `id`,
+            aa.`STORE_ID` `storeId`,
+            IF(aa.`STORE_ID` = 0,'小程序',s.`STORE_NAME`) `name`,
+            a.`TITLE` `title`,
+            aa.`CREATED_TIME` `createdTime`
+        FROM t_evm_activity_store aa  
+        left join t_evm_activity a on a.`ID` = aa.`ACTIVITY_ID`
+        left join t_evm_store s on s.`ID` = aa.`STORE_ID`
+        WHERE aa.`IS_DEL` = 0 and aa.`ACTIVITY_ID` = #{id}
+        order by aa.`CREATED_TIME` desc    
+    </select>
+</mapper>

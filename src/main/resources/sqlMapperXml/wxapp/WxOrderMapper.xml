@@ -1,0 +1,872 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxOrderMapper">
+
+	<resultMap type="WxOrder" id="order">
+		<id column="id" property="id"/>
+		<result column="openId" property="openId"/>
+		<result column="orderNo" property="orderNo"/>
+		<result column="storeId" property="storeId"/>
+		<result column="totalBalances" property="totalBalances"/>
+		<result column="payMoneyStyle" property="payMoneyStyle"/>
+		<result column="takeStyle" property="takeStyle"/>
+		<result column="status" property="status"/>
+		<result column="orderType" property="orderType"/>
+		<result column="activityId" property="activityId"/>
+		<result column="disountPrice" property="disountPrice"/>
+		<result column="couponId" property="couponId"/>
+		<result column="couponName" property="couponName"/>
+		<result column="orderDesc" property="orderDesc"/>
+		<result column="returnGoods" property="returnGoods"/>
+		<result column="userName" property="userName"/>
+		<result column="integral" property="integral"/>
+		<result column="userIntegral" property="userIntegral"/>
+		<result column="writeOffOpenId" property="writeOffOpenId"/>
+		<association property="collage" column="id" javaType="WxCollageGoods" select="selectOrderCollageGoods"></association>
+		<association property="trans" column="id" javaType="WxOrderTrans" select="selectOrderTrans"></association>
+		<association property="address" column="id" javaType="WxOrderAddress" select="queryOrderAddress"></association>
+		<association property="store" column="storeId" javaType="WxStore" select="queryOrderStore"></association>
+		<collection property="details"  column="id" ofType="WxOrderDetail" javaType="ArrayList" select="queryOrderDetailList"></collection>
+		<collection property="preList"  column="id" ofType="WxActivityFull" javaType="ArrayList" select="queryOrderPreList"></collection>
+		<collection property="giftList"  column="id" ofType="WxActivityFull" javaType="ArrayList" select="queryOrderGiftList"></collection>
+		<collection property="discountList"  column="id" ofType="WxActivityFull" javaType="ArrayList" select="queryOrderDiscountList"></collection>
+	</resultMap>
+	
+	<resultMap type="WxOrder" id="orderList">
+		<id column="id" property="id"/>
+		<id column="rid" property="rid"/>
+		<result column="openId" property="openId"/>
+		<result column="orderNo" property="orderNo"/>
+		<result column="storeId" property="storeId"/>
+		<result column="createTime" property="createTime"/>
+		<result column="totalBalances" property="totalBalances"/>
+		<result column="payMoneyStyle" property="payMoneyStyle"/>
+		<result column="status" property="status"/>
+		<result column="orderType" property="orderType"/>
+		<result column="activityId" property="activityId"/>
+		<result column="returnGoods" property="returnGoods"/>
+		<result column="addressId" property="addressId"/>
+		<association property="trans" column="id" javaType="WxOrderTrans" select="selectOrderTrans"></association>
+		<collection property="details"  column="id" ofType="WxOrderDetail" javaType="ArrayList" select="queryOrderDetailList"></collection>
+	</resultMap>
+	<resultMap type="WxOrder" id="refundList">
+		<id column="id" property="id"/>
+		<id column="rid" property="rid"/>
+		<result column="openId" property="openId"/>
+		<result column="orderNo" property="orderNo"/>
+		<result column="refundNo" property="refundNo"/>
+		<result column="totalBalances" property="totalBalances"/>
+		<result column="status" property="status"/>
+		<result column="orderType" property="orderType"/>
+		<result column="note" property="note"/>
+		<collection property="details"  column="id" ofType="WxOrderDetail" javaType="ArrayList" select="queryOrderRefundDetailList"></collection>
+	</resultMap>
+	<!-- 查询运单号 -->
+	<select id="queryOrderExpressNo" resultType="String" parameterType="PagingDto">
+		select oa.`EXPRESS_NO` from t_evm_order_address oa where oa.`ORDER_ID` = #{id} 
+	</select>
+	<select id="queryOrderExpressMap" resultType="java.util.Map" parameterType="PagingDto">
+		select oa.`EXPRESS_NO` `number`,oa.`NOTE` `expName` from t_evm_order_address oa where oa.`ORDER_ID` = #{id} 
+	</select>
+	<!-- 查询所有待发货 -->
+	<select id="queryOrderByExpressList" resultType="WxOrder">
+		select 
+		o.`ID` `id`,
+		o.`ORDER_NO` `orderNo` 
+		from t_evm_order o 
+		where o.`IS_DEL` = 0 
+		and o.`STATUS` = 1 
+		and o.`TAKE_STYLE` = 0  
+		and ifnull(o.`STORE_ID`,0) = 0
+	</select>
+	<!-- 查询活动订单数量 -->
+	<select id="queryActivityOrderCount" resultType="Integer" parameterType="PagingDto">
+		select 
+		count(o.`ID`) 
+		from t_evm_order o 
+		left join t_evm_order_detail od on od.`ORDER_ID` =  o.`ID` 
+		where o.`IS_DEL` = 0
+		and o.`STATUS` != 5 
+		and o.`ACTIVITY_ID` = #{activityId} 
+		and o.`OPEN_ID` = #{openId}
+		and o.`STORE_ID` = #{storeId}
+		and od.`SPEC_ID` = #{goodsId}
+	</select>
+	<!-- 查询订单列表 -->
+	<select id="queryOrderList" resultMap="orderList" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+				o.`ID` `id`,
+				oa.`ID` `addressId`,
+				o.`OPEN_ID` `openId`,
+				o.`ORDER_NO` `orderNo`,
+				o.`QR_CODE` `qrCode`,
+				o.`STORE_ID` `storeId`,
+				if(now() &lt;= date_add(o.`CREATED_TIME`, interval 7 day),0,1) `returnGoods`,
+				DATE_FORMAT(o.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `createTime`,
+				o.`TOTAL_BALANCES` `totalBalances`,
+				o.`STATUS` `status`,
+				o.`ORDER_TYPE` `orderType`,
+				o.`PAYMONEY_STYLE` `payMoneyStyle`,
+				o.`ACTIVITY_ID` `activityId` 
+				from t_evm_order o  
+				left join t_evm_order_address oa on oa.`ORDER_ID` = o.`ID` 
+				where o.`IS_DEL` = 0  
+				and o.`OPEN_ID` = #{openId} 
+				<if test="status != null and status != -1">
+					and o.`STATUS` = #{status}
+				</if>
+				<if test="title != null and title != ''">
+					and o.`ORDER_NO` like CONCAT(CONCAT('%',#{title}),'%')
+				</if>
+				order by o.`CREATED_TIME` desc 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+	<!-- 查询退款订单列表 -->
+	<select id="queryOrderRefundList" resultMap="refundList" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+				rr.`ID` `id`,
+				o.`OPEN_ID` `openId`,
+				o.`ORDER_NO` `orderNo`,
+				rr.`REFUND_NO` `refundNo`,
+				rr.`BALANCES` `totalBalances`,
+				rr.`STATUS` `status`,
+				rr.`TYPE` `orderType`,
+				(select ora.`EXPRESS_NO` from t_evm_order_refund_address ora where ora.`IS_DEL` = 0 and ora.`REFUND_ID` = rr.`ID`) `note`,
+				DATE_FORMAT(rr.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `createTime` 
+				from t_evm_order o 
+				left join t_evm_order_refund rr on rr.`ORDER_ID` = o.`ID`
+				where rr.`IS_DEL` = 0 
+				and o.`OPEN_ID` = #{openId} 
+				<if test="title != null and title != ''">
+					and rr.`REFUND_NO` like CONCAT(CONCAT('%',#{title}),'%')
+				</if>
+				order by rr.`CREATED_TIME` desc 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	<select id="queryOrderRefundDetailList" resultType="WxOrderDetail" parameterType="Integer">
+		SELECT
+		g.`ID` `id`,
+		rrd.`GOODS_ID` `goodsId`,
+		rrd.`SPEC_ID` `specId`,
+		g.`GOODS_NAME` `goodsName`,
+		g.`GOODS_DESC` `goodsDesc`,
+		od.`GOODS_IMAGES` `goodsImages`,
+		rrd.`GOODS_NUMS` `goodsNum`,
+		od.`GOODS_SPEC` `goodsSpec`
+		from t_evm_order_refund rr 
+		left join t_evm_order_refund_detail rrd on rrd.`REFUND_ID` = rr.`ID`
+		left join t_evm_order_detail od on od.`ORDER_ID` = rr.`ORDER_ID` and  od.`GOODS_ID` = rrd.`GOODS_ID` and od.`SPEC_ID` = rrd.`SPEC_ID` 
+		left join t_evm_goods g on g.`ID` = od.`GOODS_ID` 
+		WHERE rr.`IS_DEL` = 0 and rr.`ID` = #{id}
+	</select>
+	<!-- 查询订单详情 -->
+	<select id="queryOrderById" resultMap="order" parameterType="Integer">
+		select 
+		o.`ID` `id`,
+		o.`OPEN_ID` `openId`,
+		u.`USER_NAME` `userName`,
+		o.`ORDER_NO` `orderNo`,
+		ifnull(o.`STORE_ID`,0) `storeId`,
+		o.`TOTAL_BALANCES` `totalBalances`,
+		o.`PAYMONEY_STYLE` `payMoneyStyle`,
+		o.`TAKE_STYLE` `takeStyle`,
+		o.`STATUS` `status`,
+		o.`ORDER_TYPE` `orderType`,
+		o.`ACTIVITY_ID` `activityId`,
+		o.`DISCOUNT_PRICE` `disountPrice`,
+		o.`COUPON_ID` `couponId`,
+		o.`ORDER_DESC` `orderDesc`,
+		o.`QR_CODE` `qrCode`,
+		c.`TITLE` `couponName`,
+		if(now() &lt;= date_add(o.`CREATED_TIME`, interval 7 day),0,1) `returnGoods`,
+		o.`NOTE` `note`,
+		o.`INTEGRAL` `integral`,
+		u.`INTEGRAL` `userIntegral`,
+		uw.`USER_NAME` `writeOffOpenId`,
+		DATE_FORMAT(o.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `createTime`
+		from t_evm_order o  
+		left join t_evm_wx_user_coupon uc on uc.`ID` = o.`COUPON_ID`
+		left join t_evm_coupon c on c.`ID` = uc.`COUPON_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID` 
+		left join t_evm_wx_user uw on uw.`OPEN_ID` = o.`WRITE_OFF_OPEN_ID` 
+		where o.`IS_DEL` = 0 and o.`ID` = #{id}
+	</select>
+	<select id="queryOrderDetailList" resultType="WxOrderDetail" parameterType="Integer">
+		SELECT
+		g.`ID` `id`,
+		od.`GOODS_ID` `goodsId`,
+		od.`SPEC_ID` `specId`,
+		od.`ACTIVITY_GOODS_ID` `activityGoodsId`,
+		g.`GOODS_NAME` `goodsName`,
+		od.`GOODS_IMAGES` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		od.`GOODS_PRICE` `goodsPrice`,
+		od.`GOODS_NUMS` `goodsNum`,
+		od.`GOODS_SPEC` `goodsSpec`
+		from t_evm_order_detail od 
+		left join t_evm_goods g on g.`ID` = od.`GOODS_ID` 
+		WHERE od.`IS_DEL` = 0 and od.`ORDER_ID` = #{id}
+	</select>
+	<select id="queryOrderAddress" resultType="WxOrderAddress" parameterType="Integer">
+		select 
+			t.`id` `id`,
+	      t.`EXPRESS_NO` `expressNo`,
+	      t.`NAME` `name`,
+	      t.`MOBILE_NO` `mobileNo`,
+	      t.`DETAIL_ADDRESS` `addressDetail`,
+	      t.`PROVINCE` `province`,
+	      t.`CITY` `city`,
+	      t.`AREA` `area`,
+	      t.`FREIGHT` `freight`,
+	      a0.`NAME` `provinceName`,
+	      a1.`NAME` `cityName`,
+	      a2.`NAME` `areaName`
+	      from t_evm_order_address t 
+	      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+	      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+	      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+	      where t.`IS_DEL` = 0 
+	      and t.`ORDER_ID` = #{orderId} 
+	</select>
+	<select id="queryOrderStore" resultType="WxStore" parameterType="Integer">
+		select 
+			t.`id` `id`,
+	      t.`STORE_NO` `storeNo`,
+	      t.`STORE_NAME` `storeName`,
+	      t.`MOBILE_NO` `mobileNo`,
+	      t.`LONGITUDE` `longitude`,
+	      t.`LATITUDE` `latitude`,
+	      t.`ADDRESS_DETAIL` `addressDetail`,
+	      t.`PROVINCE` `province`,
+	      t.`CITY` `city`,
+	      t.`AREA` `area`,
+	      t.`DEVICE_ID` `deviceId`,
+	      t.`DEVICE_SECRET` `deviceSecret`,
+	      a0.`NAME` 'provinceName',
+	      a1.`NAME` 'cityName',
+	      a2.`NAME` 'areaName',
+	      (select u.`OPEN_ID` from t_evm_wx_user u where u.`IS_DEL` = 0 and u.`USER_TYPE` = 1 and  u.`STORE_ID` = t.`ID`  limit 1) `openId` 
+	      from t_evm_store t 
+	      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+	      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+	      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+	      where t.`ID` = #{storeId} 
+	</select>
+	<select id="selectOrderTrans" resultType="WxOrderTrans" parameterType="Integer">
+		select 
+		t.`ID` `id`,
+		t.`OPEN_ID` `openId`,
+		t.`ORDER_ID` `orderId`,
+		o.`ORDER_NO` `orderNo`,
+		t.`TRANS_NO` `transNo`,
+		t.`REFUND_NO` `refundNo`,
+		t.`TRANS_NAME` `transName`,
+		t.`REFUND_NAME` `refundName`,
+		t.`BALANCES` `balances`,
+		t.`REFUND_BALANCES` `refundBalances`,
+		t.`COUPON_FEE` `couponFee`,
+		t.`STATUS` `status`,
+		oa.`FREIGHT` `freight`,
+		o.`STATUS` `orderStatus`,
+		o.`TOTAL_BALANCES` `totalBalances` 
+		from t_evm_order_trans t 
+		left join t_evm_order o on o.`ID` = t.`ORDER_ID` 
+		left join t_evm_order_address oa on oa.`ORDER_ID` = o.`ID` 
+		where t.`IS_DEL` = 0 and t.`ORDER_ID` = #{id}
+	</select>
+	
+	<select id="queryOrderPreList" resultType="WxActivityFull" parameterType="Integer">
+		select 
+		op.`ACTIVITY_ID` `id`,
+		op.`PRICE` `prePrice` 
+		from t_evm_order_pre op where op.`ORDER_ID` = #{id}
+	</select>
+	<select id="queryOrderGiftList" resultType="WxActivityFull" parameterType="Integer">
+		select 
+		og.`ACTIVITY_ID` `id`,
+		af1.`FULL_PRICE` `fullPrice`,
+		og.`GOODS_ID` `goodsId`, 
+		og.`GOODS_NAME` `goodsName`,
+		og.`GOODS_IMAGES` `goodsImage`,
+		if(ifnull(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+		og.`GOODS_NUMS` `goodsNum`
+		from t_evm_order_gift og 
+		left join t_evm_goods_spec gs on gs.`ID` = og.`GOODS_ID`
+		left join (
+			select af.`FULL_PRICE`,af.`ACTIVITY_ID`,af.`GOODS_ID`,af.`GOODS_NUM` from t_evm_activity_fullgift af where af.`IS_DEL` = 0 group by af.`ACTIVITY_ID`,af.`GOODS_ID`,af.`GOODS_NUM`
+		) af1 on af1.`ACTIVITY_ID` = og.`ACTIVITY_ID` and af1.`GOODS_ID` = og.`GOODS_ID` and af1.`GOODS_NUM` = og.`GOODS_NUMS`
+		where og.`ORDER_ID` = #{id} 
+		order by af1.`FULL_PRICE` desc 
+	</select>
+	<select id="queryOrderDiscountList" resultType="WxActivityFull" parameterType="Integer">
+		select 
+		od.`ACTIVITY_ID` `id`,
+		od.`GOODS_ID` `goodsId`, 
+		g.`GOODS_NAME` `goodsName`,
+		od.`DISCOUNT` `prePrice`,
+		od.`PRICE` `price` 
+		from t_evm_order_discount od 
+		left join t_evm_goods g on g.`ID` = od.`GOODS_ID`
+		where od.`ORDER_ID` = #{id}
+	</select>
+	
+	<select id="selectOrderCollageGoods" resultType="WxCollageGoods" parameterType="Integer">
+		select 
+		cgd.`COLLAGE_ID` `id`,
+		cg.`ACTIVITY_ID` `activityId`,
+		cg.`JOIN_NUM` `joinNum`,
+		cg.`STATUS` `status`
+		from t_evm_collage_goods_detail cgd 
+		left join t_evm_collage_goods cg on  cg.`ID` = cgd.`COLLAGE_ID` 
+		where cgd.`ORDER_ID` = #{id}
+	</select>
+	<!-- 查询支付记录 -->
+	<select id="selectOrderTransByTransNo" resultType="WxOrderTrans" parameterType="String">
+		select 
+		t.`ID` `id`,
+		t.`OPEN_ID` `openId`,
+		t.`ORDER_ID` `orderId`,
+		o.`STORE_ID` `storeId`,
+		o.`ORDER_NO` `orderNo`,
+		t.`TRANS_NO` `transNo`,
+		t.`TRANS_NAME` `transName`,
+		t.`BALANCES` `balances`,
+		t.`COUPON_FEE` `couponFee`,
+		t.`STATUS` `status`
+		from t_evm_order_trans t 
+		left join t_evm_order o on o.`ID` = t.`ORDER_ID` 
+		where t.`IS_DEL` = 0 and t.`TRANS_NO` = #{transNo}
+	</select>
+	<resultMap type="WxOrderRefund" id="refund">
+		<id column="id" property="id"/>
+		<result column="refundId" property="refundId"/>
+		<result column="orderId" property="orderId"/>
+		<result column="orderNo" property="orderNo"/>
+		<result column="transNo" property="transNo"/>
+		<result column="refundNo" property="refundNo"/>
+		<result column="refundName" property="refundName"/>
+		<result column="balances" property="balances"/>
+		<result column="refundBalances" property="refundBalances"/>
+		<result column="totalBalances" property="totalBalances"/>
+		<result column="goodsNum" property="goodsNum"/>
+		<result column="couponId" property="couponId"/>
+		<result column="activityId" property="activityId"/>
+		<result column="orderType" property="orderType"/>
+		<result column="status" property="status"/>
+		<result column="type" property="type"/>
+		<result column="storeId" property="storeId"/>
+		<result column="userName" property="userName"/>
+		<result column="auditDesc" property="auditDesc"/>
+		<result column="note" property="note"/>
+		<collection property="details"  column="id" ofType="WxOrderRefund" javaType="ArrayList" select="selectOrderRefundDetail"></collection>
+		<collection property="gifts"  column="id" ofType="WxOrderRefund" javaType="ArrayList" select="selectOrderRefundGift"></collection>
+	</resultMap>
+	<!-- 查询退款记录 -->
+	<select id="selectOrderTransByRefundNo" resultMap="refund" parameterType="String">
+		select 
+		r.`ID` `id`,
+		r.`ID` `refundId`,
+		r.`ORDER_ID` `orderId`,
+		o.`ORDER_NO` `orderNo`,
+		ot.`TRANS_NO` `transNo`,
+		r.`REFUND_NO` `refundNo`,
+		r.`REFUND_NAME` `refundName`,
+		r.`BALANCES` `balances`,
+		ot.`REFUND_BALANCES` `refundBalances`,
+		ot.`BALANCES` `totalBalances`,
+		if(ot.`BALANCES` &gt; rr1.`BALANCES`,1,0) `goodsNum`,
+		o.`COUPON_ID` `couponId`,
+		o.`ACTIVITY_ID` `activityId`,
+		o.`ORDER_TYPE` `orderType`,
+		o.`STORE_ID` `storeId`,
+		r.`STATUS` `status`,
+		r.`TYPE` `type`,
+		IFNULL(o.`STORE_ID`,0) `storeId`,
+		r.`DESC` `refundDesc`,
+		r.`AUDIT_DESC` `auditDesc`,
+		r.`NOTE` `note`,
+		u.`NICK_NAME` `userName` 
+		from t_evm_order_refund r
+		left join (
+			select sum(rr.`BALANCES`) `BALANCES`,rr.`ORDER_ID` from t_evm_order_refund rr where rr.`IS_DEL` = 0 and rr.`STATUS` not in (11,12) group by rr.`ORDER_ID`
+		) rr1 on rr1.`ORDER_ID` = r.`ORDER_ID`
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = r.`ORDER_ID`
+		left join t_evm_order o on o.`ID` = r.`ORDER_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID` 
+		where r.`IS_DEL` = 0 and r.`REFUND_NO` = #{refundNo} 
+	</select>
+	<select id="selectOrderRefundDetail" resultType="WxOrderRefund" parameterType="Integer">
+		select 
+		rd.`ID` `id`,
+		rd.`REFUND_ID` `refundId`,
+		rd.`GOODS_ID` `goodsId`,
+		rd.`SPEC_ID` `specId`,
+		CONCAT(g.`GOODS_NAME`,'(',gs.`SPEC_NAME`,')') `goodsName`,
+		od.`GOODS_IMAGES` `goodsImages`,
+		od.`GOODS_PRICE` `goodsPrice`,
+		rd.`GOODS_NUMS` `goodsNum`
+		from t_evm_order_refund_detail rd 
+		left join t_evm_order_refund r on r.`ID` = rd.`REFUND_ID` 
+		left join t_evm_order_detail od on od.`ORDER_ID` = r.`ORDER_ID` and od.`GOODS_ID` = rd.`GOODS_ID`  and od.`SPEC_ID` = rd.`SPEC_ID`
+		left join t_evm_goods g on g.`ID` = rd.`GOODS_ID`
+		left join t_evm_goods_spec gs on gs.`ID` = rd.`SPEC_ID`
+		where rd.`REFUND_ID` = #{id}
+	</select>
+	<select id="selectOrderRefundGift" resultType="WxOrderRefund" parameterType="Integer">
+		select 
+		rg.`ID` `id`,
+		rg.`REFUND_ID` `refundId`,
+		rg.`ACTIVITY_ID` `activityId`,
+		rg.`GOODS_ID` `goodsId`,
+		CONCAT(g.`GOODS_NAME`,'(',gs.`SPEC_NAME`,')') `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		rg.`GOODS_NUMS` `goodsNum`
+		from t_evm_order_refund_gift rg 
+		left join t_evm_goods_spec gs on gs.`ID` = rg.`GOODS_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		left join t_evm_static_files sf on sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3 
+		where rg.`REFUND_ID` = #{id}
+	</select>
+	
+	<!-- 拼团活动 -->
+	<select id="selectCollageGoodsObj" resultType="WxCollageGoods" parameterType="Integer">
+		select 
+		cg.`ID` `id`,
+		cg.`ACTIVITY_ID` `activityId`,
+		cg.`GOODS_ID` `goodsId`,
+		cg.`JOIN_NUM` `joinNum`,
+		IFNULL(agc.`COLLAGE_NUM`,0) `collageNum`,
+		agc.`COLLAGE_TIME` `collageTime`,
+		cg.`STATUS` `status`
+		from t_evm_collage_goods cg 
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = cg.`ACTIVITY_ID` and ag.`GOODS_ID` = cg.`GOODS_ID` and ag.`STORE_ID` = cg.`STORE_ID`
+		left join t_evm_activity_goods_collage agc on agc.`ID` = cg.`COLLAGE_ID` 
+		where cg.`IS_DEL` = 0 
+		and ag.`IS_DEL` = 0 
+		and cg.`ID` = #{id}
+		and NOW() BETWEEN cg.`START_TIME` and cg.`END_TIME` 
+	</select>
+	<!-- 查询活动类型 -->
+	<select id="selectActivityByType" resultType="WxActivityGoodsCollage" parameterType="Integer">
+		select 
+		a.`ACTIVITY_TYPE` `activityType`,
+		IFNULL(agc.`COLLAGE_NUM`,0) `collageNum`,
+		agc.`COLLAGE_TIME` `collageTime` 
+		from t_evm_activity a 
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID`
+		left join t_evm_activity_goods_collage agc on agc.`ACTIVITY_GOODS_ID` = ag.`ID`
+		where a.`IS_DEL` = 0 
+		and ag.`IS_DEL` = 0 
+		and a.`ID` = #{id} and ag.`GOODS_ID` = #{goodsId} and ag.`STORE_ID` = #{storeId} 
+		and agc.`ID` = #{goodsCollageId}
+		and a.`STATUS` = 1 
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME` 
+	</select>
+	<!-- 查询商品规格 -->
+	<select id="selectgoodsSpecById" resultType="String" parameterType="Integer">
+		select a.`SPEC_NAME` from t_evm_goods_spec a where a.`ID` = #{id}
+	</select>
+	<!-- 添加订单 -->
+	<insert id="insertOrder"  parameterType="WxOrder" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order(
+			`OPEN_ID`,
+			`ORDER_NO`,
+			`STORE_ID`,
+			`TOTAL_BALANCES`,
+			`PAYMONEY_STYLE`,
+			`TAKE_STYLE`,
+			`STATUS`,
+			`ORDER_TYPE`,
+			`ACTIVITY_ID`,
+			`DISCOUNT_PRICE`,
+			`COUPON_ID`,
+			`ORDER_DESC`
+		) values (
+			#{openId},
+			#{orderNo},
+			#{storeId},
+			#{totalBalances},
+			#{payMoneyStyle},
+			#{takeStyle},
+			#{status},
+			#{orderType},
+			#{activityId},
+			#{disountPrice},
+			#{couponId},
+			#{orderDesc}
+		)
+	</insert>
+	<!-- 添加订单详情 -->
+	<insert id="insertOrderDetail" parameterType="WxOrderDetail" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_detail(
+			`ORDER_ID`,
+			`GOODS_ID`,
+			`SPEC_ID`,
+			`ACTIVITY_GOODS_ID`,
+			`GOODS_IMAGES`,
+			`GOODS_NUMS`,
+			`GOODS_SPEC`,
+			`GOODS_PRICE`
+		) values (
+			#{orderId},
+			#{goodsId},
+			#{specId},
+			#{activityGoodsId},
+			#{goodsImages},
+			#{goodsNum},
+			#{goodsSpec},
+			#{goodsPrice}
+		)
+	</insert>
+	<!-- 添加订单收货地址 -->
+	<insert id="insertOrderAddress" parameterType="WxOrderAddress" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_address(
+			`ORDER_ID`,
+			`NAME`,
+			`MOBILE_NO`,
+			`PROVINCE`,
+			`CITY`,
+			`AREA`,
+			`DETAIL_ADDRESS`,
+			`FREIGHT`
+		) values (
+			#{orderId},
+			#{name},
+			#{mobileNo},
+			#{province},
+			#{city},
+			#{area},
+			#{addressDetail},
+			#{freight}
+		)
+	</insert>
+	<!-- 添加拼团 -->
+	<insert id="insertCollageGoods" parameterType="WxCollageGoods" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_collage_goods (
+			`ACTIVITY_ID`,
+			`GOODS_ID`,
+			`COLLAGE_ID`,
+			`JOIN_NUM`,
+			`START_TIME`,
+			`END_TIME`,
+			`STORE_ID`
+		) values (
+			#{activityId},
+			#{goodsId},
+			#{collageId},
+			#{joinNum},
+			#{startTime},
+			#{endTime},
+			#{storeId}
+		)
+	</insert>
+	<insert id="insertCollageGoodsDetail" parameterType="WxCollageGoodsDetail" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_collage_goods_detail (
+			`COLLAGE_ID`,
+			`OPEN_ID`,
+			`ORDER_ID`,
+			`IS_COLLAGE`,
+			`STATUS`
+		) values (
+			#{collageId},
+			#{openId},
+			#{orderId},
+			#{isCollage},
+			#{status}
+		)
+	</insert>
+	<!-- 添加支付记录 -->
+	<insert id="insertOrderTrans" parameterType="WxOrderTrans" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_trans (
+			`OPEN_ID`,
+			`ORDER_ID`,
+			`TRANS_NO`,
+			`REFUND_NO`,
+			`TRANS_NAME`,
+			`REFUND_NAME`,
+			`BALANCES`
+		) values (
+			#{openId},
+			#{orderId},
+			#{transNo},
+			#{refundNo},
+			#{transName},
+			#{refundName},
+			#{balances}
+		)
+	</insert>
+	<!-- 拼团人数增加 -->
+	<update id="updateCollageGoodsNum" parameterType="Integer">
+		update t_evm_collage_goods set `JOIN_NUM`=`JOIN_NUM` + 1 ,`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	<!-- 商品库存 加减 -->
+	<update id="updateGoodsAmount" parameterType="Integer">
+		update t_evm_goods_spec set `GOODS_AMOUNT`=`GOODS_AMOUNT` + #{amount},`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	<update id="updateGoodsRemAmount" parameterType="Integer">
+		update t_evm_goods_spec set `GOODS_REM_AMOUNT`=`GOODS_REM_AMOUNT` + #{amount},`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	<!-- 门店商品库存  加减 -->
+	<update id="updateStoreGoodsAmount" parameterType="Integer">
+		update t_evm_store_goods set `GOODS_AMOUNT`=`GOODS_AMOUNT` + #{amount},`LAST_MODIFIED_TIME` = NOW() where `STORE_ID` = #{storeId} and `SPEC_ID` = #{goodsId}
+	</update>
+	<!-- 活动商品库存  加减 -->
+	<update id="updateActivityGoodsAmount" parameterType="Integer">
+		update t_evm_activity_goods set `ACTIVITY_AMOUNT`=`ACTIVITY_AMOUNT` + #{amount},`LAST_MODIFIED_TIME` = NOW() where `ACTIVITY_ID` = #{activityId} and `GOODS_ID` = #{goodsId} and `STORE_ID` = #{storeId}
+	</update>
+	<update id="updateActivityGoodsLadderAmount" parameterType="Integer">
+		update t_evm_activity_goods ag 
+			left join t_evm_activity_goods_bargain agb on agb.`ACTIVITY_GOODS_ID` = ag.`ID`
+			left join t_evm_activity_goods_bargain_ladder agbl on agbl.`BARGAIN_ID` = agb.`ID` 
+			set ag.`ACTIVITY_AMOUNT`=ag.`ACTIVITY_AMOUNT` + #{amount},ag.`LAST_MODIFIED_TIME` = NOW() 
+			where ag.`ACTIVITY_ID` =  #{activityId}
+				and ag.`STORE_ID` = #{storeId} 
+				and agbl.`GOODS_ID` = #{goodsId}  
+				and agbl.`GOODS_NUM` = #{goodsNum} 
+	</update>
+	<!-- 积分商品库存  加减 -->
+	<update id="updateIntegralGoodsAmount" parameterType="Integer">
+		update t_evm_integral_goods set `GOODS_AMOUNT`=`GOODS_AMOUNT` + #{amount},`LAST_MODIFIED_TIME` = NOW() where `GOODS_ID` = #{id}
+	</update>
+	
+	<!-- 商品销量  加减 -->
+	<update id="updateGoodsSales" parameterType="Integer">
+		update t_evm_goods set `GOODS_SALES`=`GOODS_SALES` + #{sales},`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	<!-- 商品总销量  加减 -->
+	<update id="updateGoodsTotalSales" parameterType="Integer">
+		update t_evm_goods set `GOODS_TOTAL_SALES`=`GOODS_TOTAL_SALES` + #{sales},`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	
+	<!-- 赠品库存 加减 -->
+	<update id="updateGoodsGiftAmount" parameterType="Integer">
+		update t_evm_activity_fullgift set `AMOUNT`=`AMOUNT` + #{amount},`LAST_MODIFIED_TIME` = NOW() where `ACTIVITY_ID` = #{activityId} and `GOODS_ID` = #{goodsId} and `STORE_ID` = #{storeId} and `GOODS_NUM` = #{goodsNum} 
+	</update>
+	<!-- 订单二维码 -->
+	<update id="updateOrderQrCode" parameterType="WxOrder">
+		update t_evm_order set `QR_CODE` = #{qrCode},`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	<!-- 修改订单状态 -->
+	<update id="updateOrderStatus" parameterType="Integer">
+		update t_evm_order set `STATUS` = #{status},`NOTE` = #{upStatus},`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	<!-- 修改订单支付状态 -->
+	<update id="updateOrderTransStatus" parameterType="WxOrderTrans">
+		update t_evm_order_trans set 
+		`STATUS` = #{status},
+		<if test="couponFee != null">
+			`COUPON_FEE` = #{couponFee}, 
+		</if>
+		<if test="refundBalances != null">
+			`REFUND_BALANCES` = #{refundBalances}, 
+		</if>
+		`LAST_MODIFIED_TIME` = NOW() 
+		where `ORDER_ID` = #{orderId}
+	</update>
+	<!-- 修改订单退款状态 -->
+	<update id="updateOrderRefundStatus" parameterType="Integer">
+		update t_evm_order_refund set 
+		`STATUS` = #{status},
+		<if test="note != null">
+			`AUDIT_DESC` = #{note},
+		</if>
+		`LAST_MODIFIED_TIME` = NOW() 
+		where `ID` = #{id}
+	</update>
+	<!-- 修改优惠券状态 -->
+	<update id="updateCouponStatus" parameterType="Integer">
+		update t_evm_wx_user_coupon set `STATUS` = #{status} ,`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id}
+	</update>
+	<!-- 修改订单积分 -->
+	<update id="updateOrderIntegral" parameterType="Integer">
+		update t_evm_order set `INTEGRAL` = #{integral} where `ID` = #{id}
+	</update>
+	
+	<!-- 修改订单已退金额 -->
+	<update id="updateOrderTransRefund" parameterType="WxOrderTrans">
+		update t_evm_order_trans set 
+		`REFUND_BALANCES` = `REFUND_BALANCES` + #{refundBalances} ,
+		<if test="status != null">
+			`STATUS` = #{status},
+		</if>
+		`LAST_MODIFIED_TIME` = NOW() where `ORDER_ID` = #{orderId} 
+	</update>
+	
+	<insert id="insertOrderPre" parameterType="WxActivityFull" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_pre (
+			`ORDER_ID`,
+			`ACTIVITY_ID`,
+			`PRICE`
+		) values (
+			#{orderId},
+			#{id},
+			#{prePrice}
+		)
+	</insert>
+	<insert id="insertOrderGift" parameterType="WxActivityFull" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_gift (
+			`ORDER_ID`,
+			`ACTIVITY_ID`,
+			`GOODS_ID`,
+			`GOODS_NAME`,
+			`GOODS_IMAGES`,
+			`GOODS_NUMS`
+		) values (
+			#{orderId},
+			#{id},
+			#{goodsId},
+			#{goodsName},
+			#{goodsImage},
+			#{goodsNum}
+		)
+	</insert>
+	<insert id="insertOrderDiscount" parameterType="WxActivityFull" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_discount (
+			`ORDER_ID`,
+			`ACTIVITY_ID`,
+			`GOODS_ID`,
+			`DISCOUNT`,
+			`PRICE`
+		) values (
+			#{orderId},
+			#{id},
+			#{goodsId},
+			#{prePrice},
+			#{price}
+		)
+	</insert>
+	
+	<!-- 查询退款商品列表 -->
+	<select id="queryOrderRefundGoodsList" resultType="WxOrderDetail" parameterType="Integer">
+		select 
+		g.`ID` `id`,
+		od.`GOODS_ID` `goodsId`,
+		od.`SPEC_ID` `specId`,
+		od.`ACTIVITY_GOODS_ID` `activityGoodsId`,
+		g.`GOODS_NAME` `goodsName`,
+		od.`GOODS_IMAGES` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		od.`GOODS_PRICE` `goodsPrice`,
+		od.`GOODS_SPEC` `goodsSpec`,
+		od.`GOODS_NUMS` - ifnull(rr1.`GOODS_NUMS`,0) `goodsNum`
+		from t_evm_order o 
+		left join t_evm_order_detail od  on od.`ORDER_ID` = o.`ID`
+		left join (
+			select rr.`ORDER_ID`,rrd.`GOODS_ID`,rrd.`SPEC_ID`,sum(rrd.`GOODS_NUMS`) `GOODS_NUMS` 
+			from t_evm_order_refund rr 
+			left join t_evm_order_refund_detail rrd on rrd.`REFUND_ID` = rr.`ID` 
+			where rr.`IS_DEL` = 0 and rr.`STATUS` not in (11,12) 
+			group by rr.`ORDER_ID`,rrd.`GOODS_ID`,rrd.`SPEC_ID`
+		) rr1 on rr1.`ORDER_ID` = o.`ID` and rr1.`GOODS_ID` = od.`GOODS_ID` and rr1.`SPEC_ID` = od.`SPEC_ID` 
+		LEFT JOIN t_evm_goods g on g.`ID` = od.`GOODS_ID` 
+		where o.`STATUS` in (1,2,6) and o.`ID` = #{id} and (od.`GOODS_NUMS` - ifnull(rr1.`GOODS_NUMS`,0)) &gt; 0
+	</select>
+	<select id="queryOrderRefundGiftList" resultType="WxOrderDetail" parameterType="Integer">
+		select 
+		o.`ID` `id`,
+		og.`ACTIVITY_ID` `activityGoodsId`,
+		og.`GOODS_ID` `specId`, 
+		og.`GOODS_NAME` `goodsName`,
+		og.`GOODS_IMAGES` `goodsImages`,
+		og.`GOODS_NUMS` - ifnull(rr1.`GOODS_NUMS`,0) `goodsNum`
+		from t_evm_order o 
+		left join t_evm_order_gift og on og.`ORDER_ID` = o.`ID` 
+		left join (
+			select rr.`ORDER_ID`,rrg.`GOODS_ID`,sum(rrg.`GOODS_NUMS`) `GOODS_NUMS` 
+			from t_evm_order_refund rr 
+			left join t_evm_order_refund_gift rrg on rrg.`REFUND_ID` = rr.`ID` 
+			where rr.`IS_DEL` = 0 and rr.`STATUS` not in (11,12) 
+			group by rr.`ORDER_ID`,rrg.`GOODS_ID`,rrg.`GOODS_NUMS`
+		) rr1 on rr1.`ORDER_ID` = o.`ID` and rr1.`GOODS_ID` = og.`GOODS_ID` and rr1.`GOODS_NUMS` = og.`GOODS_NUMS` 
+		where o.`STATUS` in (1,2,6) and o.`ID` = #{id} and (og.`GOODS_NUMS` - ifnull(rr1.`GOODS_NUMS`,0)) &gt; 0
+	</select>
+	<select id="queryOrderRefundAddress" resultType="WxAddress" parameterType="Integer">
+		select 
+		ora.`REFUND_ID` `id`,
+		ora.`EXPRESS_NO` `expressNo`,
+		ora.`EXPRESS_NAME` `expressName`,
+		ora.`NAME` `name`,
+		ora.`MOBILE_NO` `mobileNo`,
+		a0.`NAME` `provinceName`,
+		a1.`NAME` `cityName`,
+		a2.`NAME` `areaName`,
+		ora.`DETAIL_ADDRESS` `addressDetail` 
+		from t_evm_order_refund_address ora
+		left join t_evm_area a0 on a0.`ID` = ora.`PROVINCE`
+		left join t_evm_area a1 on a1.`ID` = ora.`CITY`
+		left join t_evm_area a2 on a2.`ID` = ora.`AREA`
+		where ora.`REFUND_ID` = #{refundId} 
+	</select>
+	<update id="updateRefundExpressNo" parameterType="WxAddress">
+		update t_evm_order_refund_address set `EXPRESS_NO` = #{expressNo},`EXPRESS_NAME` = #{expressName},`LAST_MODIFIED_TIME` = NOW() where `REFUND_ID` = #{id}
+	</update>
+	<!-- 添加订单退款退货 -->
+	<insert id="insertOrderRefund" parameterType="WxOrderRefund" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_refund (
+			`ORDER_ID`,
+			`REFUND_NO`,
+			`REFUND_NAME`,
+			`BALANCES`,
+			`STATUS`,
+			`TYPE`,
+			`DESC`,
+			`NOTE`
+		) values (
+			#{orderId},
+			#{refundNo},
+			#{refundName},
+			#{balances},
+			#{status},
+			#{type},
+			#{desc},
+			#{note}
+		)
+	</insert>
+	<!-- 添加订单退货明细 -->
+	<insert id="insertOrderRefundDetail" parameterType="WxOrderRefund" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_refund_detail (
+			`REFUND_ID`,
+			`GOODS_ID`,
+			`SPEC_ID`,
+			`GOODS_NUMS`
+		) values (
+			#{refundId},
+			#{goodsId},
+			#{specId},
+			#{goodsNum}
+		)
+	</insert>
+	<insert id="insertOrderRefundGift" parameterType="WxOrderRefund" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_order_refund_gift (
+			`REFUND_ID`,
+			`ACTIVITY_ID`,
+			`GOODS_ID`,
+			`GOODS_NUMS`
+		) values (
+			#{refundId},
+			#{activityId},
+			#{goodsId},
+			#{goodsNum}
+		)
+	</insert>
+	<update id="deleteOrderRefund" parameterType="Integer">
+		update t_evm_order_refund set `IS_DEL` = 1 where `ID` = #{id}
+	</update>
+	<update id="updateOrderDetailGoodsNum">
+		update t_evm_order_detail set `GOODS_NUMS` = `GOODS_NUMS` - #{goodsNum} where `ORDER_ID` = #{orderId} and `SPEC_ID` = #{specId} 
+	</update>
+	<update id="updateOrderGiftGoodsNum">
+		update t_evm_order_gift set `GOODS_NUMS` = `GOODS_NUMS` - #{goodsNum} where `ORDER_ID` = #{orderId} and `ACTIVITY_ID` = #{activityId} and `GOODS_ID` = #{goodsId}
+	</update>
+</mapper>

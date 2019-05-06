@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxCollageMapper">
+	<resultMap type="WxCollageGoods" id="collage">
+		<id column="id" property="id"/>
+		<result column="goodsCollageId" property="goodsCollageId"/>
+		<result column="activityId" property="activityId"/>
+		<result column="goodsId" property="goodsId"/>
+		<result column="goodsName" property="goodsName"/>
+		<result column="goodsDesc" property="goodsDesc"/>
+		<result column="goodsPrice" property="goodsPrice"/>
+		<result column="activityPrice" property="activityPrice"/>
+		<result column="collageNum" property="collageNum"/>
+		<result column="joinNum" property="joinNum"/>
+		<result column="startTime" property="startTime"/>
+		<result column="endTime" property="endTime"/>
+		<result column="status" property="status"/>
+		<result column="isBuy" property="isBuy"/>
+		<result column="specId" property="specId"/>
+		<result column="isDel" property="isDel"></result>
+		<collection property="details"  column="id" ofType="WxCollageGoodsDetail" javaType="ArrayList" select="queryCollageDetail"></collection>
+		
+	</resultMap>
+	<!-- 查询拼团活动Id -->
+	<select id="queryCollageGoodsId" resultType="Integer" parameterType="Integer">
+		select 
+		cgd.`COLLAGE_ID`
+		from t_evm_collage_goods_detail cgd 
+		where cgd.`ORDER_ID` = #{orderId}
+	</select>
+	<!-- 查询拼团详情 -->
+	<select id="queryCollageObj" resultMap="collage" parameterType="PagingDto">
+		SELECT
+		cg.`ID` `id`,
+		agc.`ID` `goodsCollageId`,
+		g.`ID` `goodsId`,
+		gs.`ID` `specId`,
+		a.`ID` `activityId`,
+		CONCAT(g.`GOODS_NAME`,gs.`SPEC_NAME`) `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+		agc.`COLLAGE_PRICE` `activityPrice`,
+		IFNULL(agc.`COLLAGE_NUM`,0) `collageNum`,
+		cg.`JOIN_NUM` `joinNum`,
+		NOW() `startTime`,
+		cg.`END_TIME` `endTime`,
+		cg.`STATUS` `status`,
+		if(NOW() BETWEEN cg.`START_TIME` and cg.`END_TIME` ,0,1) `isDel`,
+		(select count(o.`ID`) 
+		from t_evm_order o 
+		left join t_evm_order_detail od on od.`ORDER_ID` = o.`ID` 
+		where o.`ACTIVITY_ID` = cg.`ACTIVITY_ID` and od.GOODS_ID = cg.`GOODS_ID` and o.`STATUS` != 0) `orderNum`,
+		(select count(cgd.`ID`) from t_evm_collage_goods_detail cgd where cgd.`COLLAGE_ID` = cg.`ID` and cgd.`OPEN_ID` = #{openId}) `isBuy`
+		from t_evm_collage_goods cg 
+		left join t_evm_activity a on a.`ID` = cg.`ACTIVITY_ID` 
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = cg.`ACTIVITY_ID` and ag.`GOODS_ID` = cg.`GOODS_ID` and ag.`STORE_ID` = cg.`STORE_ID`
+		left join t_evm_activity_goods_collage agc on agc.`ID` = cg.`COLLAGE_ID` 
+		left join t_evm_goods_spec gs on gs.`ID` = cg.`GOODS_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = cg.`GOODS_ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 4 and sf.`SMALL_TYPE` = 0
+		WHERE cg.`IS_DEL` = 0 
+		and ag.`IS_DEL` = 0 
+		and cg.`ID` = #{id}
+	</select>
+	<select id="queryCollageDetail" resultType="WxCollageGoodsDetail" parameterType="Integer">
+		select 
+		cgd.`IS_COLLAGE` `isCollage`,
+		cgd.`ORDER_ID` `orderId`,
+		o.`STORE_ID` `storeId`,
+		u.`USER_NAME` `userName`,
+		u.`HEAD_IMG_URL` `headImgUrl` 
+		from t_evm_collage_goods_detail cgd 
+		left join t_evm_order o on o.`ID` = cgd.`ORDER_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = cgd.`OPEN_ID` 
+		where cgd.`IS_DEL` = 0 and cgd.`STATUS` = 1 and cgd.`COLLAGE_ID` = #{id}
+	</select>
+	<!-- 活动拼团 -->
+	<select id="queryCollageJoinNum" resultType="WxCollageGoods" parameterType="WxCollageGoods">
+		select 
+		cg.`ID` `id`,
+		IFNULL(agc.`COLLAGE_NUM`,0) `collageNum`,
+		cg.`JOIN_NUM` `joinNum`
+		from  t_evm_collage_goods_detail cgd
+		left join t_evm_collage_goods cg on  cg.`ID` = cgd.`COLLAGE_ID` 
+		left join t_evm_activity_goods ag on ag.`IS_DEL` = 0 and ag.`ACTIVITY_ID` = cg.`ACTIVITY_ID` and ag.`GOODS_ID` = cg.`GOODS_ID` and ag.`STORE_ID` = #{storeId}
+		left join t_evm_activity_goods_collage agc on agc.`ID` = cg.`COLLAGE_ID` 
+		where cg.`IS_DEL` = 0 and  cg.`STATUS` = 0 
+		and cg.`ACTIVITY_ID` = #{activityId} 
+		and cg.`GOODS_ID` = #{goodsId} 
+		and cg.`STORE_ID` = #{storeId}
+		and cgd.`OPEN_ID` = #{openId}
+		and cgd.`ORDER_ID` = #{orderId}
+	</select>
+	
+	<!-- 查询未结束我的开团 -->
+	<select id="queryCollageByIsUser" resultType="Integer" parameterType="PagingDto">
+		select 
+		count(cgd.`ID`)
+		from  t_evm_collage_goods_detail cgd
+		left join t_evm_collage_goods cg on  cg.`ID` = cgd.`COLLAGE_ID` 
+		where cg.`IS_DEL` = 0 and  cg.`STATUS` = 0 and cgd.`IS_COLLAGE` = 0
+		and cg.`ACTIVITY_ID` = #{activityId} 
+		and cg.`GOODS_ID` = #{goodsId} 
+		and cg.`STORE_ID` = #{storeId}
+		and cgd.`OPEN_ID` = #{openId} 
+		and NOW() BETWEEN cg.`START_TIME` and cg.`END_TIME` 
+	</select>
+	
+	<update id="updateCollageNum" parameterType="WxCollageGoods">
+		update t_evm_collage_goods set `JOIN_NUM` = `JOIN_NUM`+#{joinNum},`LAST_MODIFIED_TIME` = NOW() 
+		where `ID` = #{id} 
+	</update>
+	<update id="updateCollageStatus" parameterType="WxCollageGoods">
+		update t_evm_collage_goods set `STATUS` = #{status},`LAST_MODIFIED_TIME` = NOW() 
+		where `ID` = #{id} 
+	</update>
+	<update id="updateCollageDetailStatus"  parameterType="WxCollageGoods">
+		update t_evm_collage_goods_detail set `STATUS` = #{status},`LAST_MODIFIED_TIME` = NOW() 
+		where `OPEN_ID` = #{openId}
+		and `COLLAGE_ID` = #{id}
+	</update>
+</mapper>

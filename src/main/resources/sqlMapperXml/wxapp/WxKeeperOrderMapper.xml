@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxKeeperOrderMapper">
+<!-- 查询订单列表 -->
+	<resultMap type="WxKeeperOrder" id="orderMap">
+		<id column="id" property="id"/>
+		<result column="order_no" property="orderNo"/>
+		<result column="status" property="status"/>
+		<result column="created_time" property="createdTime"/>
+		<result column="ORDER_TYPE" property="orderType"/>
+		<result column="TOTAL_BALANCES" property="totalBalances"/>
+		<result column="DISCOUNT_PRICE" property="discountPrice"/>
+		<collection property="orderDetails"  column="id" ofType="WxKeeperGoods" javaType="ArrayList" select="queryOrderGoodsList"></collection>
+	</resultMap>
+	
+	<select id="queryOrderList" resultMap="orderMap" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select o.id,o.ORDER_NO,o.`STATUS`,o.CREATED_TIME,
+				o.ORDER_TYPE,ot.BALANCES TOTAL_BALANCES, o.DISCOUNT_PRICE
+				from t_evm_order o
+				left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID`
+				where o.IS_DEL = 0
+				and o.take_style=1
+				and o.`store_id` = #{id}
+				<if test="title !=null and title!=''">
+					and (o.ORDER_NO like CONCAT('%',#{title},'%')
+						or o.id in (
+ 							select order_id from t_evm_order_detail od 
+ 							where od.goods_id in (select id from t_evm_goods where goods_name like CONCAT('%',#{title},'%'))
+							)
+						)
+				</if>
+				<if test=" startDate != null and startDate !='' and endDate != null and endDate != '' ">
+					and o.CREATED_TIME BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+				</if>
+				<if test=" status != null and status!=-1 ">
+					and o.status = #{status}
+					order by id desc
+				</if>
+				<if test="status==-1 ">
+					order by status,id desc
+				</if>
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+	<select id="queryOrderGoodsList" parameterType="java.lang.Integer" resultType="WxKeeperGoods">
+	   select g.id,g.goods_name goodsName,od.goods_price goodsPrice,
+	   (select f.file_path from t_evm_static_files f where is_del=0 and 
+	   	f.relation_id=g.id and f.file_type = 0 and f.big_type=0
+	   	and f.small_type=0) goodsImage,
+	   od.GOODS_NUMS goodsNums
+	   from t_evm_order_detail od 
+	   left join t_evm_goods g on g.id = od.goods_id 
+	   where od.order_id = #{id}
+	</select>
+	
+<!-- 到店取货订单总金额 -->
+	<select id="queryTotalMoney" parameterType="WxKeeperOrder" resultType="java.lang.Double">
+		select sum(ot.BALANCES) totalMoney
+		from t_evm_order o 
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID`
+		LEFT JOIN t_evm_store s on o.`STORE_ID` = s.`ID`
+		where o.IS_DEL = 0 
+		and s.`ID` = #{id}
+		and o.take_style = 1 
+		and o.`STATUS` in(1,2,6) 
+		<if test=" startDate != null and startDate !='' and endDate != null and endDate != '' ">
+			and o.CREATED_TIME BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+		</if>
+	</select>
+<!-- 到店取货优惠总额	 -->
+<select id="queryYouhuiMoney" parameterType="WxKeeperOrder" resultType="java.lang.Double">
+		select sum(o.DISCOUNT_PRICE) youhui
+		from t_evm_order o 
+		LEFT JOIN t_evm_store s on o.`STORE_ID` = s.`ID`
+		where o.IS_DEL = 0 
+		and s.`ID` = #{id}
+		and o.take_style = 1 
+		and o.`STATUS` in(2,6) 
+		<if test=" startDate != null and startDate !='' and endDate != null and endDate != '' ">
+			and o.CREATED_TIME BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+		</if>
+	</select>
+<!-- 查询到店取货的订单量 -->
+   <select id="queryOrderNum" resultType="java.lang.Integer" parameterType="PagingDto">
+      select count(*) totalOrder
+		from t_evm_order o
+		LEFT JOIN t_evm_store s on s.`ID` = o.`STORE_ID`
+		where o.IS_DEL = 0 
+		and s.`ID` = #{id} 
+		and o.`STATUS` in (1,6)
+		and o.take_style = 1
+		<if test=" startDate != null and startDate !='' and endDate != null and endDate != '' ">
+			and o.CREATED_TIME BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+		</if>
+   </select>
+<!-- 查询到店取货订单中未取货量 -->
+   <select id="queryNotPickOrderCount" resultType="java.lang.Integer" parameterType="PagingDto">
+      select ifnull(sum(od.goods_nums),0) totalWth
+		from t_evm_order_detail od 
+		left join t_evm_order o on o.id = od.order_id
+		where od.IS_DEL = 0 
+		and o.`store_id` = #{id} 
+		and o.status = 1
+		and o.take_style = 1
+		<if test=" startDate != null and startDate !='' and endDate != null and endDate != '' ">
+			and o.CREATED_TIME BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+		</if>
+   </select> 
+   
+   <!-- 查询已核销订单列表 -->
+	<resultMap type="WxKeeperOrder" id="recodeMap">
+		<id column="id" property="id"/>
+		<result column="order_no" property="orderNo"/>
+		<result column="status" property="status"/>
+		<result column="created_time" property="createdTime"/>
+		<result column="ORDER_TYPE" property="orderType"/>
+		<result column="TOTAL_BALANCES" property="totalBalances"/>
+		<result column="DISCOUNT_PRICE" property="discountPrice"/>
+		<collection property="orderDetails"  column="id" ofType="WxKeeperGoods" javaType="ArrayList" select="queryOrderGoodsList"></collection>
+	</resultMap>
+	
+	<select id="queryRecodeList" resultMap="recodeMap" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select o.id,o.ORDER_NO,o.`STATUS`,o.CREATED_TIME,
+				o.ORDER_TYPE,o.TOTAL_BALANCES,o.DISCOUNT_PRICE 
+				from t_evm_order o
+				where o.IS_DEL = 0
+				and o.`store_id` = #{id}
+				and o.take_style=1
+				and o.status = 6
+				<if test="title !=null and title!=''">
+					and (o.ORDER_NO like CONCAT('%',#{title},'%')
+						or o.id in (
+ 							select order_id from t_evm_order_detail od 
+ 							where od.goods_id in (select id from t_evm_goods where goods_name like CONCAT('%',#{title},'%'))
+							)
+						)
+				</if>
+				<if test=" startDate != null and startDate !='' and endDate != null and endDate != '' ">
+					and o.CREATED_TIME BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+				</if>
+				order by o.id desc
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+<!-- 获取订单详情 -->
+	<select id="queryOrderCodeDetail" parameterType="DataModel" resultType="WxKeeperOrder">
+	   select id,write_off_code writeOffCode,
+	   order_no orderNo,store_id storeId,
+	   STATUS 
+	   FROM t_evm_order  where id = #{dataId}
+	</select>
+<!-- 核销订单 -->
+	<update id="writeOffOrderInfo" parameterType="DataModel">
+	   update t_evm_order set WRITE_OFF_OPEN_ID = #{openId},LAST_MODIFIED_TIME = now()
+	   where id = #{dataId}
+	</update>
+	
+<!-- 店主店员订单详情 -->
+	<resultMap type="WxKeeperOrder" id="orderDetail">
+		<id column="id" property="id"/>
+		<result column="order_no" property="orderNo"/>
+		<result column="status" property="status"/>
+		<result column="created_time" property="createdTime"/>
+		<result column="ORDER_TYPE" property="orderType"/>
+		<result column="TOTAL_BALANCES" property="totalBalances"/>
+		<result column="paymoneyStyle" property="paymoneyStyle"/>
+		<result column="NICK_NAME" property="nickName"/>
+		<result column="MOBILE_NO" property="mobileNo"/>
+		<result column="DISCOUNT_PRICE" property="discountPrice"/>
+		<association property="orderTrans" column="id" javaType="WxOrderTrans" select="queryOrderTrans"></association>
+		<collection property="orderDetails"  column="id" ofType="WxKeeperGoods" javaType="ArrayList" select="queryOrderGoodsList"></collection>
+		<collection property="giftList"  column="id" ofType="WxOrderGift" javaType="ArrayList" select="queryOrderGiftList"></collection>
+		<collection property="preList"  column="id" ofType="WxOrderPre" javaType="ArrayList" select="queryOrderPreList"></collection>
+		
+	</resultMap>
+	
+	<select id="selectOrderDetail" resultMap="orderDetail" parameterType="PagingDto">
+		select o.id,o.ORDER_NO,o.`STATUS`,o.CREATED_TIME,
+				o.ORDER_TYPE,o.TOTAL_BALANCES,o.DISCOUNT_PRICE,u.nick_name,u.mobile_no ,o.`PAYMONEY_STYLE` `paymoneyStyle` 
+				from t_evm_order o
+				left join
+					t_evm_wx_user u
+				on u.open_id = o.open_id	
+				where 
+				 o.`id` = #{id}
+	</select>		
+	<select id="queryOrderTrans" resultType="WxOrderTrans" parameterType="Integer">
+		select 
+		ot.`ID` `id`,
+		ot.`BALANCES` `balances`,
+		ot.`STATUS` `status` 
+		from t_evm_order_trans ot 
+		where ot.`ORDER_ID` = #{id}
+	</select>
+	<select id="queryOrderGiftList" resultType="WxOrderGift" parameterType="Integer">
+		select 
+		og.`ID` `id`,
+		og.`ACTIVITY_ID` `activityId`,
+		og.`GOODS_ID` `goodsId`,
+		og.`GOODS_NAME` `goodsName`,
+		og.`GOODS_IMAGES` `goodsImages`,
+		og.`GOODS_NUMS` `goodsNum` 
+		from t_evm_order_gift og 
+		where og.`ORDER_ID` = #{id}
+	</select>
+	<select id="queryOrderPreList" resultType="WxOrderPre" parameterType="Integer">
+		select 
+		op.`ID` `id`,
+		op.`ACTIVITY_ID` `activityId`,
+		op.`PRICE` `price` 
+		from t_evm_order_pre op
+		where op.`ORDER_ID` = #{id}
+	</select>
+	<!-- 查询订单状态 -->
+	<select id="queryOrderStatus" resultType="Integer" parameterType="Integer">
+		select  o.`STATUS` from t_evm_order o where o.`IS_DEL` = 0 and o.`ID` = #{id} 
+	</select>	
+	
+	
+	<!-- 确认收款 -->
+	<update id="confirmReceipt" parameterType="DataModel">
+	   update t_evm_order set `STATUS` = 1, WRITE_OFF_CODE = #{openId},LAST_MODIFIED_TIME = now()
+	   where id = #{dataId}
+	</update>
+	<update id="confirmReceiptTrans" parameterType="DataModel">
+		update t_evm_order_trans set `STATUS` = 1,LAST_MODIFIED_TIME = now()
+	   where `ORDER_ID` = #{dataId}
+	</update>
+</mapper>

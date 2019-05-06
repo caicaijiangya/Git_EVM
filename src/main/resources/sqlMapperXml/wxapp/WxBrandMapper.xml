@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxBrandMapper">
+
+   <resultMap type="WxBrandStory" id="brandStory">
+     <id column="id" property="id"/>
+     <id column="rid" property="rid"/>
+     <result property="title" column="title"/>
+     <result property="isTop" column="isTop"/>
+     <result property="coverImg" column="coverImg"/>
+     <result property="simpleDesc" column="simpleDesc"/>
+     <result property="seq" column="seq"/>
+     <result property="introImg" column="introImg"/>
+     <result property="labelDesc" column="labelDesc"/>
+     <result property="goodsId" column="goodsId"/>
+     <result property="browerNum" column="browerNum"/>
+     <association property="goodsInfo" column="goodsId" select="queryGoodsInfo"></association>
+     <collection property="storyDetailList" column="id" select="queryBrandStoryDetailList"></collection>
+   </resultMap>
+
+   <!-- 获取品牌故事列表 -->
+	<select id="queryBrandList" resultType="WxBrandStory" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select  
+		        `ID`,
+		        `title`,
+		        `is_top` isTop,
+				`cover_img` coverImg,
+				`simple_desc` simpleDesc 
+				from t_evm_brand_story  bs
+				where bs.is_del = 0
+				and bs.is_show = 0
+				order by is_top desc,seq asc,id desc 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+	
+	<!-- 获取品牌故事详情 -->
+	<select id="queryBrandDetail" resultMap="brandStory" parameterType="PagingDto">
+		    select  
+	        `ID`,
+	        `title`,
+	        `is_top` isTop,
+			`cover_img` coverImg,
+			`simple_desc` simpleDesc,
+			`intro_img` introImg,
+			`author`,
+			`label_desc` labelDesc,
+			`brand_desc` brandDesc,
+			`goods_id` goodsId,
+			ifnull(`brower_num`,0) browerNum,
+			(select count(*) from t_evm_brand_story_zan where brand_store_id = bs.id and open_id = #{openId}) isZan 
+			from t_evm_brand_story  bs
+			where bs.is_del = 0
+			and bs.is_show = 0
+			and bs.id = #{id}
+	</select>
+	
+	<!-- 获取商品信息 -->
+	<select id="queryGoodsInfo" parameterType="Integer" resultType="WxGoods">
+	  select g.`id`,g.`goods_name` goodsName,g.`GOODS_PRICE` goodsPrice,sf.`FILE_PATH`  goodsImages  
+	  from t_evm_goods g
+	  LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0 
+	  where g.id = #{goodsId}
+	  and g.is_del = 0
+	  and g.status = 1
+	</select>
+	
+	<!-- 获取详情 -->
+	<select id="queryBrandStoryDetailList" parameterType="Integer" resultType="WxBrandStoryDetail">
+	    select id,title,`intro_img` introImg,`brand_detail` brandDetail from t_evm_brand_story_detail 
+	    where brand_story_id = #{id}
+	    and ifnull(is_del,0)=0
+	    and ifnull(is_show,0) = 0
+	    order by seq
+	</select>
+	
+	<!-- 更新浏览量 -->
+	<update id="modifyBrandInfo" parameterType="PagingDto">
+	   update t_evm_brand_story set brower_num = ifnull(brower_num,0)+1
+	   where id = #{id}
+	</update>
+	
+	<!-- 点赞操作 -->
+	<insert id="insertBrandZanInfo"  parameterType="PagingDto">
+	  insert into t_evm_brand_story_zan(open_id,brand_store_id)
+	  values(#{openId},#{id})
+	</insert>
+	
+	<!-- 取消点赞 -->
+	<delete id="delBrandZanInfo"  parameterType="PagingDto">
+	  delete from t_evm_brand_story_zan where open_id = #{openId}
+	  and brand_store_id = #{id}
+	</delete>
+</mapper>

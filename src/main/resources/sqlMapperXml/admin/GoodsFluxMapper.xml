@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.GoodsFluxMapper">
+	<select id="selectDataGrid" resultType="Goods" parameterType="Goods">
+		SELECT
+			g.id,
+			gs.id specId,
+			g.goods_name goodsName,
+			gs.goods_code sku,
+			gs.`SPEC_NAME` `specName`,
+			DATE_FORMAT(o1.`CREATED_TIME`, #{format}) `dateTime`,
+			ifnull(gal1.click_num,0) clickNum,
+			ifnull(gal2.click_man_num,0) clickManNum,
+			ifnull(uc1.collect_num,0) collectNum,
+			ifnull(od2.sale_num,0) saleNum,
+			ifnull(o1.buy_man_num,0) buyManNum,
+			ifnull(us1.cart_goods_num,0) cartGoodsNum,
+			ifnull(od1.sale_price,0) salePrice	,
+			ifnull(fans.`FANS`,0) funsNum,
+			CONCAT(ROUND(ifnull((gal1.click_num/gal2.click_man_num),0) * 100,2),'%') `clickPer`,	
+			CONCAT(ROUND(ifnull((od2.sale_num/o1.buy_man_num),0) * 100,2),'%') `buyPer`
+		FROM t_evm_goods g
+		LEFT JOIN t_evm_goods_spec gs ON gs.GOODS_ID = g.ID
+		left join(
+			SELECT COUNT(DISTINCT o.open_id) 'buy_man_num',o.`CREATED_TIME`,od.goods_id,od.spec_id FROM t_evm_order o
+			LEFT JOIN t_evm_order_detail od ON od.order_id = o.id
+			WHERE o.`STATUS` = 6
+			<if test=" startTime != null and startTime != '' ">
+                and DATE_FORMAT(o.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+                and DATE_FORMAT(o.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY od.goods_id, od.spec_id,DATE_FORMAT(od.`created_time`, #{format})
+			) as o1 on o1.goods_id = g.id and o1.spec_id = gs.id 
+		left join(
+			SELECT COUNT(gal.ID) `click_num`, DATE_FORMAT(gal.`CREATED_TIME`, #{format}) `CREATED_TIME`,gal.goods_id,gal.spec_id FROM t_evm_goods_access_log gal
+			WHERE 1=1
+				<if test=" startTime != null and startTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &gt;= #{startTime}
+				</if>
+				<if test=" endTime != null and endTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &lt;= #{endTime}
+				</if>
+				GROUP BY gal.GOODS_ID, gal.SPEC_ID,DATE_FORMAT(gal.`created_time`, #{format})
+		) as gal1 on gal1.goods_id=g.id and gal1.spec_id = gs.id and gal1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format}) 
+		left join(
+			SELECT COUNT(DISTINCT gal.open_id) `click_man_num`,DATE_FORMAT(gal.`CREATED_TIME`, #{format}) `CREATED_TIME`,gal.goods_id,gal.spec_id FROM t_evm_goods_access_log gal
+			WHERE 1=1 
+				<if test=" startTime != null and startTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &gt;= #{startTime}
+				</if>
+				<if test=" endTime != null and endTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &lt;= #{endTime}
+				</if>
+				GROUP BY gal.GOODS_ID, gal.SPEC_ID,DATE_FORMAT(gal.`created_time`, #{format})
+		) as gal2 on gal2.goods_id=g.id and gal2.spec_id = gs.id and gal2.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format}) 
+		left join(
+			SELECT COUNT(uc.id) `collect_num`,DATE_FORMAT(uc.`CREATED_TIME`, #{format}) `CREATED_TIME`,uc.goods_id FROM t_evm_user_collect uc
+			WHERE  1=1
+			<if test=" startTime != null and startTime != '' ">
+               and DATE_FORMAT(uc.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+                and DATE_FORMAT(uc.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY uc.GOODS_ID,DATE_FORMAT(uc.`created_time`, #{format})
+		) as uc1 on uc1.goods_id = g.id and uc1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join(
+			SELECT SUM(od.goods_nums) `sale_num`,DATE_FORMAT(o.`CREATED_TIME`, #{format}) `CREATED_TIME`,od.goods_id,od.spec_id FROM t_evm_order_detail od
+			LEFT JOIN t_evm_order o ON o.id = od.ORDER_ID
+			WHERE o.`STATUS` = 6
+				<if test=" startTime != null and startTime != '' ">
+                	and DATE_FORMAT(od.created_time, #{format}) &gt;=#{startTime}
+				</if>
+				<if test=" endTime != null and endTime != '' ">
+                	and DATE_FORMAT(od.created_time, #{format}) &lt;= #{endTime}
+				</if>
+				GROUP BY od.goods_id, od.spec_id,DATE_FORMAT(od.`created_time`, #{format})
+		) as od2 on od2.goods_id = g.id and od2.spec_id = gs.id and od2.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join(
+			SELECT SUM(us.goods_num) 'cart_goods_num',DATE_FORMAT(us.`created_time`, #{format}) `CREATED_TIME`,us.goods_id,us.spec_id from t_evm_user_shoppingcart us 
+			WHERE 1=1
+			<if test=" startTime != null and startTime != '' ">
+                and DATE_FORMAT(us.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+                and DATE_FORMAT(us.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY us.goods_id,us.spec_id,DATE_FORMAT(us.`created_time`, #{format})
+		) as  us1 on us1.goods_id = g.id and us1.spec_id = gs.id  and us1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join (
+			select ROUND(sum(od.goods_nums*od.goods_price),2) `sale_price`,DATE_FORMAT(od.`CREATED_TIME`, #{format}) `CREATED_TIME`,od.goods_id,od.spec_id from t_evm_order_detail od
+			left join t_evm_order o on o.id = od.order_id
+			where o.`status`=6 
+			<if test=" startTime != null and startTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			group by od.goods_id,od.spec_id,DATE_FORMAT(od.`created_time`, #{format})
+		) as od1 on  od1.goods_id=g.id and od1.spec_id=gs.id and od1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join (
+			select 
+			COUNT(*) `NEW_FANS`, 
+			(select COUNT(*) from t_evm_wx_user u1 where u1.`IS_AUTH` = 1 and DATE_FORMAT(u1.`CREATED_TIME`, #{format}) &lt;= DATE_FORMAT(u.`CREATED_TIME`, #{format})) `FANS`,
+			DATE_FORMAT(u.`CREATED_TIME`, #{format}) `CREATED_TIME` 
+			from t_evm_wx_user u 
+			where u.`IS_AUTH` = 1 
+			GROUP BY DATE_FORMAT(u.`CREATED_TIME`, #{format})
+		) fans on fans.`CREATED_TIME` = DATE_FORMAT(o1.`CREATED_TIME`, #{format}) 
+		WHERE g.IS_DEL = 0 AND g.`STATUS` = 1 and o1.CREATED_TIME IS NOT NULL 
+		<if test="gdIds != null">
+			and g.`id` IN 
+			<foreach collection="gdIds" item="gdId" separator="," open="(" close=")">
+            	#{gdId}
+        	</foreach>
+		</if>
+		group by DATE_FORMAT(o1.`CREATED_TIME`, #{format}),g.id,gs.id
+        order by od2.sale_num desc
+	</select>
+	
+	<select id="selectMoreDataGrid" resultType="java.util.Map" parameterType="Goods">
+		SELECT
+			g.id,
+			gs.id specId,
+			g.goods_name goodsName,
+			gs.goods_code sku,
+			gs.`SPEC_NAME` `specName`,
+			ifnull(an1.funs_num,0) funsNum,
+			DATE_FORMAT(o1.`CREATED_TIME`, #{format}) `dateTime`,
+			ifnull(gal1.click_num,0) clickNum,
+			ifnull(gal2.click_man_num,0) clickManNum,
+			CONCAT(ROUND(ifnull((gal1.click_num/gal2.click_man_num),0) * 100,2),'%') `clickPer`,
+			ifnull(uc1.collect_num,0) collectNum,
+			ifnull(od2.sale_num,0) saleNum,
+			ifnull(o1.buy_man_num,0) buyManNum,
+			CONCAT(ROUND(ifnull((od2.sale_num/o1.buy_man_num),0) * 100,2),'%') `buyPer`,
+			ifnull(us1.cart_goods_num,0) cartGoodsNum,
+			ifnull(od1.sale_price,0) salePrice		
+		FROM t_evm_goods g
+		LEFT JOIN t_evm_goods_spec gs ON gs.GOODS_ID = g.ID
+		left join(
+			SELECT COUNT(DISTINCT o.open_id) 'buy_man_num',o.`CREATED_TIME`,od.goods_id,od.spec_id FROM t_evm_order o
+			LEFT JOIN t_evm_order_detail od ON od.order_id = o.id
+			WHERE o.`STATUS` = 6
+			<if test=" startTime != null and startTime != '' ">
+                and DATE_FORMAT(o.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+                and DATE_FORMAT(o.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY od.goods_id, od.spec_id,DATE_FORMAT(od.`created_time`, #{format})
+			) as o1 on o1.goods_id = g.id and o1.spec_id = gs.id 
+		left join(
+			SELECT COUNT(gal.ID) `click_num`, DATE_FORMAT(gal.`CREATED_TIME`, #{format}) `CREATED_TIME`,gal.goods_id,gal.spec_id FROM t_evm_goods_access_log gal
+			WHERE 1=1
+				<if test=" startTime != null and startTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &gt;= #{startTime}
+				</if>
+				<if test=" endTime != null and endTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &lt;= #{endTime}
+				</if>
+				GROUP BY gal.GOODS_ID, gal.SPEC_ID,DATE_FORMAT(gal.`created_time`, #{format})
+		) as gal1 on gal1.goods_id=g.id and gal1.spec_id = gs.id and gal1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format}) 
+		left join(
+			SELECT COUNT(DISTINCT gal.open_id) `click_man_num`,DATE_FORMAT(gal.`CREATED_TIME`, #{format}) `CREATED_TIME`,gal.goods_id,gal.spec_id FROM t_evm_goods_access_log gal
+			WHERE 1=1 
+				<if test=" startTime != null and startTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &gt;= #{startTime}
+				</if>
+				<if test=" endTime != null and endTime != '' ">
+                	and DATE_FORMAT(gal.created_time, #{format}) &lt;= #{endTime}
+				</if>
+				GROUP BY gal.GOODS_ID, gal.SPEC_ID,DATE_FORMAT(gal.`created_time`, #{format})
+		) as gal2 on gal2.goods_id=g.id and gal2.spec_id = gs.id and gal2.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format}) 
+		left join(
+			SELECT COUNT(uc.id) `collect_num`,DATE_FORMAT(uc.`CREATED_TIME`, #{format}) `CREATED_TIME`,uc.goods_id FROM t_evm_user_collect uc
+			WHERE  1=1
+			<if test=" startTime != null and startTime != '' ">
+               and DATE_FORMAT(uc.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+                and DATE_FORMAT(uc.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY uc.GOODS_ID,DATE_FORMAT(uc.`created_time`, #{format})
+		) as uc1 on uc1.goods_id = g.id and uc1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join(
+			SELECT SUM(od.goods_nums) `sale_num`,DATE_FORMAT(o.`CREATED_TIME`, #{format}) `CREATED_TIME`,od.goods_id,od.spec_id FROM t_evm_order_detail od
+			LEFT JOIN t_evm_order o ON o.id = od.ORDER_ID
+			WHERE o.`STATUS` = 6
+				<if test=" startTime != null and startTime != '' ">
+                	and DATE_FORMAT(od.created_time, #{format}) &gt;=#{startTime}
+				</if>
+				<if test=" endTime != null and endTime != '' ">
+                	and DATE_FORMAT(od.created_time, #{format}) &lt;= #{endTime}
+				</if>
+				GROUP BY od.goods_id, od.spec_id,DATE_FORMAT(od.`created_time`, #{format})
+		) as od2 on od2.goods_id = g.id and od2.spec_id = gs.id and od2.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join(
+			SELECT SUM(us.goods_num) 'cart_goods_num',DATE_FORMAT(us.`created_time`, #{format}) `CREATED_TIME`,us.goods_id,us.spec_id from t_evm_user_shoppingcart us 
+			WHERE 1=1
+			<if test=" startTime != null and startTime != '' ">
+                and DATE_FORMAT(us.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+                and DATE_FORMAT(us.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY us.goods_id,us.spec_id,DATE_FORMAT(us.`created_time`, #{format})
+		) as  us1 on us1.goods_id = g.id and us1.spec_id = gs.id  and us1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join (
+			select ROUND(sum(od.goods_nums*od.goods_price),2) `sale_price`,DATE_FORMAT(od.`CREATED_TIME`, #{format}) `CREATED_TIME`,od.goods_id,od.spec_id from t_evm_order_detail od
+			left join t_evm_order o on o.id = od.order_id
+			where o.`status`=6 
+			<if test=" startTime != null and startTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			group by od.goods_id,od.spec_id,DATE_FORMAT(od.`created_time`, #{format})
+		) as od1 on  od1.goods_id=g.id and od1.spec_id=gs.id and od1.created_time = DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		left join(
+			select sum(an.VISIT_TOTAL) funs_num,DATE_FORMAT(an.`REF_DATE`, #{format}) `CREATED_TIME` from t_evm_analytics an 
+			where 1=1
+			<if test=" startTime != null and startTime != '' ">
+              		and DATE_FORMAT(an.REF_DATE, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+              		and DATE_FORMAT(an.REF_DATE, #{format}) &lt;= #{endTime}
+			</if>
+			group by DATE_FORMAT(an.REF_DATE, #{format})
+		) as an1 on an1.`CREATED_TIME`=DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		WHERE g.IS_DEL = 0 AND g.`STATUS` = 1 and o1.CREATED_TIME IS NOT NULL 
+		<if test="gdIds != null">
+			and g.`id` IN 
+			<foreach collection="gdIds" item="gdId" separator="," open="(" close=")">
+            	#{gdId}
+        	</foreach>
+		</if>
+		group by DATE_FORMAT(o1.`CREATED_TIME`, #{format}),g.id,gs.id
+        order by od2.sale_num desc
+	</select>
+	
+<!-- 商品流量分析-门店列表 -->
+	<select id="selectStoreFluxData" parameterType="Goods" resultType="Goods">
+		SELECT
+			o.STORE_ID storeId,
+			ifnull(s.STORE_NAME,"小程序") storeName,
+			sum(od.goods_nums) storeSaleNum,
+			ROUND(sum(od.GOODS_NUMS * od.GOODS_PRICE),2) storeSalePrice
+		FROM
+			t_evm_order_detail od
+		LEFT JOIN t_evm_order o ON o.id = od.ORDER_ID
+		LEFT JOIN t_evm_store s on s.id = o.STORE_ID
+		WHERE
+			    o.`STATUS` = 6
+			AND od.GOODS_ID = #{goodsId}
+			AND SPEC_ID = #{specId}
+			<if test="newStoreIds != null">
+				and o.STORE_ID IN 
+				<foreach collection="newStoreIds" item="newStoreId" separator="," open="(" close=")">
+            		#{newStoreId}
+        		</foreach>
+			</if>
+       		<if test=" startTime != null and startTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &lt;= #{endTime}
+			</if>
+		GROUP BY o.STORE_ID
+	</select>
+	
+	<select id="selectStoreChannelData" parameterType="Goods" resultType="java.util.Map">
+		SELECT
+			o.STORE_ID storeId,
+			ifnull(s.STORE_NAME,"小程序") storeName,
+			DATE_FORMAT(o.`CREATED_TIME`, '%Y') `dateTime`,
+			sum(od.goods_nums) storeSaleNum,
+			ROUND(sum(od.GOODS_NUMS * od.GOODS_PRICE),2) storeSalePrice,
+			od.spec_id specId,
+			od.goods_id goodsId,
+			ifnull(od2.sale_price,0) salePrice,
+            CONCAT(ROUND(ifnull((sum(od.GOODS_NUMS * od.GOODS_PRICE) /ifnull(od2.sale_price,0)),0) * 100,2),'%') `proportion`
+		FROM
+			t_evm_order_detail od
+		LEFT JOIN t_evm_order o ON o.id = od.ORDER_ID
+		LEFT JOIN t_evm_store s on s.id = o.STORE_ID
+		left join (
+			select ROUND(sum(od1.goods_nums*od1.goods_price),2) `sale_price`,DATE_FORMAT(od1.`CREATED_TIME`, #{format}) `CREATED_TIME`,od1.goods_id,od1.spec_id from t_evm_order_detail od1
+			left join t_evm_order o1 on o1.id = od1.order_id
+			where o1.`status`=6 
+			<if test=" startTime != null and startTime != '' ">
+              		and DATE_FORMAT(od1.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+              		and DATE_FORMAT(od1.created_time, #{format}) &lt;= #{endTime}
+			</if>
+			group by od1.goods_id,od1.spec_id,DATE_FORMAT(od1.`created_time`, #{format})
+		) as od2 on  od2.goods_id=od.goods_id and od2.spec_id=od.spec_id and od2.created_time = DATE_FORMAT(o.`CREATED_TIME`, #{format})
+		WHERE
+			    o.`STATUS` = 6
+       		<if test=" startTime != null and startTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &gt;= #{startTime}
+			</if>
+			<if test=" endTime != null and endTime != '' ">
+              		and DATE_FORMAT(od.created_time, #{format}) &lt;= #{endTime}
+			</if>
+		GROUP BY o.STORE_ID,od.spec_id,od.goods_id,DATE_FORMAT(o.`CREATED_TIME`, '%Y')
+	</select>
+</mapper>

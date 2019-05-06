@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxAreaMapper">
+	
+	<sql id="areaColumn">
+		a.`ID`,
+		a.`AREA_NO`,
+		a.`NAME`,
+		a.`PID`,
+		DATE_FORMAT(a.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s'),
+		a.`NOTE`
+	</sql>
+	<!-- 根据编码查询地市信息 -->
+   <select id="queryAreaByNo" resultType="WxArea" parameterType="java.lang.String">
+      select 
+		<include refid="areaColumn" />
+		from t_evm_area a
+		where a.`IS_DEL` = 0 
+		and a.`AREA_NO` = #{areaNo} 
+   </select>
+   <!-- 查询门店热门地市 -->
+   <select id="queryStoreArea" resultType="WxArea">
+   		 select 
+		<include refid="areaColumn" />
+		from t_evm_store_area sa 
+		left join t_evm_area a on a.`ID` = sa.`AREA_ID` 
+		where sa.`IS_DEL` = 0 
+		order by sa.`SEQ` asc 
+   </select>
+</mapper>

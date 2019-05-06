@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxInvoiceMapper">
+	<insert id="insertOrderInvoice" parameterType="WxInvoice">
+		insert into t_evm_order_invoice (
+		`ORDER_ID`,
+		`GHFQYLX`,
+		`GHFMC`,
+		`GHF_NSRSBH`,
+		`FPQQLSH`,
+		`FILE_URL`,
+		`SEND_MESSAGE`,
+		`SEND_RETURN_MESSAGE`,
+		`DOWNLOAD_MESSAGE`,
+		`DOWNLOAD_RETURN_MESSAGE`
+		`STATUS`)
+		values 
+		(
+			#{orderId},
+			#{ghfqylx},
+			#{ghfmc},
+			#{ghfNsrsbh},
+			#{fpqqlsh},
+			#{fileUrl},
+			#{sendMessage},
+			#{sendReturnMessage},
+			#{downloadMessage},
+			#{downloadReturnMessage},
+			#{status}
+		)
+	</insert>
+</mapper>

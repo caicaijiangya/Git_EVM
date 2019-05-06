@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.OrderTransMapper">
+<!-- 查询交易记录列表 -->
+	<select id="selectDataGrid" parameterType="OrderTrans" resultType="OrderTrans">
+		SELECT
+			ot.id,u.nick_name nickName,o.order_no orderNo,
+			ot.TRANS_NO transNo,ot.REFUND_NO refundNo,
+			ot.trans_name transName,ot.REFUND_NAME refundName,
+			ot.BALANCES,ot.COUPON_FEE couponFee,ot.`status`,ot.created_time createdTime
+		FROM
+			t_evm_order_trans ot
+		LEFT JOIN t_evm_wx_user u ON u.OPEN_ID = ot.OPEN_ID
+		LEFT JOIN t_evm_order o ON o.id = ot.ORDER_ID
+		WHERE
+			ot.IS_DEL = 0
+			<if test="transName!=null and transName!=''">
+				and (u.NICK_NAME like CONCAT('%',#{transName},'%')
+				or o.ORDER_NO like CONCAT('%',#{transName},'%')
+				or ot.TRANS_NO like CONCAT('%',#{transName},'%')
+				or ot.REFUND_NO like CONCAT('%',#{transName},'%')
+				or ot.REFUND_NAME like CONCAT('%',#{transName},'%')
+				or ot.trans_name like CONCAT('%',#{transName},'%')
+					)
+			</if>
+			<if test="status!=null">
+				and ot.`status`=#{status}
+			</if>
+			order by ot.id desc
+	</select>
+</mapper>

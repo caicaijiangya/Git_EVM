@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.IntegralGoodsMapper">
+	<!-- 查询积分商品列表 -->
+	<select id="selectDataGrid" resultType="IntegralGoods" parameterType="IntegralGoods">
+        SELECT
+            ig.id,
+           	ifnull(ig.GOODS_TOTAL_AMOUNT,0) goodsTotalAmount,
+           	ig.goods_id goodsId,
+           	ig.GOODS_PRICE goodsPrice,
+           	ifnull(ig.GOODS_AMOUNT,0) goodsAmount,
+           	ig.TYPE,
+           	(select f.file_path from t_evm_static_files f
+           		where f.RELATION_ID=ig.goods_id 
+           		and f.file_type=0 and f.big_type=6 and f.small_type=0)filePath,
+           	ig.START_TIME startTime,
+           	ig.end_time endTime, 
+            (case 
+				when ig.type=0 then CONCAT(g.goods_Name,gs.`SPEC_NAME`) 
+				when ig.type=1 then c.title end) goodsName,
+            ig.created_time createdTime
+        FROM t_evm_integral_goods ig
+        LEFT JOIN t_evm_coupon c ON c.id = ig.`GOODS_ID` 
+        LEFT JOIN t_evm_goods_spec gs on gs.`ID` = ig.`GOODS_ID`
+       	LEFT JOIN t_evm_goods g ON g.id = gs.`GOODS_ID`
+        WHERE
+            ig.is_del = 0
+            <if test="goodsName !=null and goodsName!=''">
+            	and (g.goods_Name like CONCAT('%',#{goodsName},'%') or 
+            	gs.`SPEC_NAME` like CONCAT('%',#{goodsName},'%') or 
+				c.title like CONCAT('%',#{goodsName},'%'))
+			</if>
+			<if test="type !=null">
+				and ig.type = #{type}
+			</if>
+        order by ig.ID desc    
+    </select>
+    <select id="selectIntegralGoodsObj" resultType="IntegralGoods" parameterType="java.lang.Integer">
+    	SELECT
+            ig.id,
+           	ig.goods_id goodsId,
+           	ig.GOODS_PRICE goodsPrice,
+           	gs.GOODS_AMOUNT goodsTotalAmount,
+           	ifnull(ig.GOODS_AMOUNT,0) goodsAmount,
+           	ig.TYPE `type`,
+           	ig.`BUY_NUM` `buyNum`,
+           	ig.START_TIME startTime,
+           	ig.end_time endTime, 
+            (case 
+				when ig.type=0 then CONCAT(g.goods_Name,gs.`SPEC_NAME`) 
+				when ig.type=1 then c.title end) goodsName,
+            ig.created_time createdTime
+        FROM t_evm_integral_goods ig
+        LEFT JOIN t_evm_coupon c ON c.id = ig.`GOODS_ID` 
+        LEFT JOIN t_evm_goods_spec gs on gs.`ID` = ig.`GOODS_ID`
+       	LEFT JOIN t_evm_goods g ON g.id = gs.`GOODS_ID`
+        WHERE ig.`ID` = #{id}
+    </select>
+<!-- 通过增减库存改变积分商品库存     -->
+	<update id="updateGoodsAmount" parameterType="IntegralGoods">
+		update t_evm_integral_goods set goods_amount = goods_amount+#{amount} where id= #{id}
+	</update>
+<!-- 通过增减库存改变商品可分配库存     -->
+	<update id="editGoodsStock" parameterType="IntegralGoods">
+		update t_evm_goods_spec set goods_amount = goods_amount-#{amount},GOODS_REM_AMOUNT = GOODS_REM_AMOUNT-#{amount} where id= #{goodsId}
+	</update>	
+	
+<!-- 获取商品轮播图 ,缩略图和 详情图  -->
+	<select id="queryGoodsImgList" parameterType="IntegralGoods" resultType="StaticFiles">
+	     select id,file_path filePath,file_type fileType,big_type bigType,small_type smallType
+	     from t_evm_static_files
+	     where ifnull(is_del,0)=0
+	     and file_type = 0
+	     and big_type = 6
+	     and relation_id = #{goodsId}
+	</select>
+	<delete id="deleteGoodsImg" parameterType="IntegralGoods">
+		delete from t_evm_static_files where `RELATION_ID` = #{goodsId}
+    	and `FILE_TYPE` = 0
+    	and `BIG_TYPE` = 6 
+	</delete>
+<select id="selectIntegralGoodsByGoodsId" parameterType="IntegralGoods" resultType="java.lang.Integer">
+	select count(*) from t_evm_integral_goods  where is_del=0 and goods_id=#{goodsId} and type=#{type}
+</select>	
+<select id="queryGoodsAmount" parameterType="java.lang.Integer" resultType="IntegralGoods">
+	select g.id,g.goods_amount goodsStock from t_evm_goods_spec g where g.id=#{goodsId} 
+</select>	
+</mapper>

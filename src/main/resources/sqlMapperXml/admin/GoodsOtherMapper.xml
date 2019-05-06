@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.GoodsOtherMapper">
+	<!-- 查询商品列表 -->
+	<select id="selectCombogridDataGrid" resultType="Goods" parameterType="Goods">
+        select 
+		<if test="type == 1">
+		g.`ID` `id`,
+		</if>
+		u.`NAME` `userName`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImage`,
+		g.`GOODS_DESC` `goodsDesc`,
+		g.`GOODS_SALES` `goodsSales`,
+		g.`GOODS_TOTAL_SALES` `goodsTotalSales`,
+		<if test="type != 1">
+		gs.`ID` `id`,
+		gs.`SPEC_NAME` `specName`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		gs.`GOODS_CODE`	`sku`,
+		gs.`GOODS_AMOUNT` `goodsAmount`,
+		gs.`GOODS_REM_AMOUNT` `goodsRemAmount`,
+		gs.`GOODS_TOTAL_AMOUNT` `goodsTotalAmount`,
+		</if>
+		g.`STATUS` `status`,
+		g.`BRAND_ID` `brandId`,
+		gb.`NAME` `brandName`,
+		g.`CREATED_TIME` `createdTime`,
+		g.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		g.`NOTE` `note`
+		<if test="type != 1">
+			from t_evm_goods_spec gs 
+			left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		</if>
+		 <if test="type == 1">
+		 	from t_evm_goods g 
+		 </if>
+		left join t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		left join t_evm_user u on u.`ID` = g.`USER_ID` 
+		<if test="type != 1">
+		left join t_evm_static_files sf on sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		</if>
+		<if test="type == 1">
+		left join t_evm_static_files sf on sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+		</if>
+		where g.`IS_DEL` = 0 
+		<if test="type != 1">
+		and gs.`IS_DEL` = 0 
+		</if>
+		and g.`STATUS` = 1 
+		<if test="brandId != null">
+			and gb.`ID` = #{brandId}
+		</if>
+		<if test="dataParam!=null and dataParam!=''">
+			and (g.goods_name like CONCAT('%',#{dataParam},'%')
+				or gs.goods_code like CONCAT('%',#{dataParam},'%'))
+		</if>
+		order by g.`BRAND_ID` desc
+    </select>  
+    
+    <!-- 查询门店商品列表 -->
+	<select id="selectStoreGodsDataGrid" resultType="Goods" parameterType="Goods">
+        select 
+		gs.`ID` `id`,
+		u.`NAME` `userName`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImage`,
+		g.`GOODS_DESC` `goodsDesc`,
+		gs.`SPEC_NAME` `specName`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		g.`GOODS_SALES` `goodsSales`,
+		g.`GOODS_TOTAL_SALES` `goodsTotalSales`,
+		gs.`GOODS_AMOUNT` `goodsAmount`,
+		gs.`GOODS_REM_AMOUNT` `goodsRemAmount`,
+		gs.`GOODS_TOTAL_AMOUNT` `goodsTotalAmount`,
+		g.`STATUS` `status`,
+		g.`BRAND_ID` `brandId`,
+		gb.`NAME` `brandName`,
+		g.`CREATED_TIME` `createdTime`,
+		g.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		g.`NOTE` `note`
+		from t_evm_store_goods sg 
+		left join t_evm_goods_spec gs on gs.`ID` = sg.`SPEC_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		left join t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		left join t_evm_user u on u.`ID` = g.`USER_ID` 
+		left join t_evm_static_files sf on sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		where g.`IS_DEL` = 0 and g.`STATUS` = 1 and gs.`IS_DEL` = 0 
+		and sg.`STORE_ID` = #{storeId} 
+		<if test="dataParam!=null and dataParam!=''">
+			and (g.goods_name like CONCAT('%',#{dataParam},'%')
+				or gs.goods_code like CONCAT('%',#{dataParam},'%'))
+		</if>
+		order by g.`CREATED_TIME` desc
+    </select>  
+	<!-- 商品分类 -->
+	<select id="selectClassifyDataGrid" resultType="GoodsClassify">
+        select 
+		gc.`ID` `id`,
+		gc.`NAME` `name`,
+		gc.`SEQ` `seq`,
+		gc.`CREATED_TIME` `createdTime`,
+		gc.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		gc.`NOTE` `note`
+		from t_evm_goods_classify gc
+		where gc.`IS_DEL` = 0 
+		order by gc.`SEQ` asc
+    </select>   
+    <select id="selectClassifyObj" resultType="GoodsClassify" parameterType="Integer">
+    	select 
+		gc.`ID` `id`,
+		gc.`NAME` `name`,
+		gc.`SEQ` `seq`,
+		gc.`CREATED_TIME` `createdTime`,
+		gc.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		gc.`NOTE` `note`
+		from t_evm_goods_classify gc
+		where gc.`ID` = #{id}
+    </select>
+    <insert id="insertClassify" parameterType="GoodsClassify">
+    	insert into t_evm_goods_classify(`NAME`,`SEQ`) values (#{name},#{seq})
+    </insert>
+    <update id="updateClassify" parameterType="GoodsClassify">
+    	update t_evm_goods_classify set `NAME` = #{name},`SEQ` = #{seq},`LAST_MODIFIED_TIME` = now() where `ID` = #{id}
+    </update>
+    <delete id="deleteClassify" parameterType="Integer">
+    	delete from t_evm_goods_classify where `ID` = #{id}
+    </delete>
+    
+    <!-- 商品品牌 -->
+	<select id="selectBrandDataGrid" resultType="GoodsClassify">
+        select 
+		gc.`ID` `id`,
+		gc.`NAME` `brandName`,
+		gc.`SEQ` `brandSeq`,
+		gc.`CREATED_TIME` `createdTime`,
+		gc.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		gc.`NOTE` `note`
+		from t_evm_goods_brand gc
+		where gc.`IS_DEL` = 0 
+		order by gc.`SEQ` asc
+    </select>   
+    <select id="selectBrandObj" resultType="GoodsClassify" parameterType="Integer">
+    	select 
+		gc.`ID` `id`,
+		gc.`NAME` `brandName`,
+		gc.`SEQ` `brandSeq`,
+		gc.`CREATED_TIME` `createdTime`,
+		gc.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		gc.`NOTE` `note`
+		from t_evm_goods_brand gc
+		where gc.`ID` = #{id}
+    </select>
+    <insert id="insertBrand" parameterType="GoodsClassify">
+    	insert into t_evm_goods_brand(`NAME`,`SEQ`) values (#{brandName},#{brandSeq})
+    </insert>
+    <update id="updateBrand" parameterType="GoodsClassify">
+    	update t_evm_goods_brand set `NAME` = #{brandName},`SEQ` = #{brandSeq},`LAST_MODIFIED_TIME` = now() where `ID` = #{id}
+    </update>
+    <delete id="deleteBrand" parameterType="Integer">
+    	delete from t_evm_goods_brand where `ID` = #{id}
+    </delete>
+    
+    <!-- 商品热门 -->
+	<select id="selectHotDataGrid" resultType="Goods" parameterType="Goods">
+        select 
+		gh.`ID` `id`,
+		gh.`SEQ` `seq`,
+		gh.`TYPE` `type`,
+		gh.`SIZE` `size`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImage`,
+		g.`GOODS_DESC` `goodsDesc`,
+		gb.`NAME` `brandName`,
+		gh.`CREATED_TIME` `createdTime`
+		from t_evm_goods_hot gh
+		left join t_evm_goods g on g.`ID` = gh.`GOODS_ID` 
+		left join t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		left join t_evm_static_files sf on sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+		where gh.`IS_DEL` = 0 
+		<if test="type != null">
+			and gh.`TYPE` = #{type}
+		</if>
+		order by gh.`SEQ` asc
+    </select>   
+    <select id="selectHotObj" resultType="GoodsClassify" parameterType="Integer">
+    	select 
+		gc.`ID` `id`,
+		gc.`GOODS_ID` `goodsId`,
+		g.`GOODS_NAME` `goodsName`,
+		gc.`TYPE` `type`,
+		gc.`SEQ` `seq`,
+		gc.`SIZE` `size`,
+		gc.`CREATED_TIME` `createdTime`,
+		gc.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		gc.`NOTE` `note`
+		from t_evm_goods_hot gc
+		left join t_evm_goods g on g.`ID` = gc.`GOODS_ID` 
+		where gc.`ID` = #{id}
+    </select>
+    <insert id="insertHot" parameterType="GoodsClassify">
+    	insert into t_evm_goods_hot(`GOODS_ID`,`SEQ`,`TYPE`,`SIZE`) values (#{goodsId},#{seq},#{type},#{size})
+    </insert>
+    <update id="updateHot" parameterType="GoodsClassify">
+    	update t_evm_goods_hot set `GOODS_ID` = #{goodsId},`SEQ` = #{seq},`TYPE` = #{type},`SIZE`=#{size},`LAST_MODIFIED_TIME` = now() where `ID` = #{id}
+    </update>
+    <delete id="deleteHot" parameterType="Integer">
+    	delete from t_evm_goods_hot where `ID` = #{id}
+    </delete>
+    
+    <select id="queryAllClassify" parameterType="GoodsClassify" resultType="GoodsClassify">
+    	select id,name from t_evm_goods_classify where is_del=0
+    </select>
+    <select id="queryGoodsIdBySpecId" resultType="Integer" parameterType="Integer">
+    	select `GOODS_ID` from t_evm_goods_spec where `ID` = #{id} 
+    </select>
+</mapper>

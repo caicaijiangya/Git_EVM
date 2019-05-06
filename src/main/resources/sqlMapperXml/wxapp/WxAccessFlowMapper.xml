@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxAccessFlowMapper">
+	<!-- 访问次数+1 -->
+	<update id="updateAccessFlow" parameterType="WxAccessFlow">
+		update t_evm_access_flow_log set `TIME` = `TIME` + 1 
+		where `IS_DEL` = 0 
+		<if test="storeId != null">
+			and `STORE_ID` = #{storeId}
+		</if>
+		<if test="openId != null and openId != ''">
+			and `OPEN_ID` = #{openId}
+		</if>
+		<if test="type != null">
+			and `TYPE` = #{type}
+		</if>
+	</update>
+	<!-- 添加新访问记录 -->
+	<insert id="insertAccessFlow" parameterType="WxAccessFlow">
+		insert into t_evm_access_flow_log (`STORE_ID`,`OPEN_ID`,`URL`,`PARAMETER`,`TYPE`)
+		values 
+		(#{storeId},#{openId},#{url},#{parameter},#{type})
+	</insert>
+	<!-- 修改用户所属门店 -->
+	<update id="updateUserStore" parameterType="WxAccessFlow">
+		update t_evm_wx_user set `STORE_ID` = #{storeId} where `OPEN_ID` = #{openId} and  (`STORE_ID` IS NULL  OR `STORE_ID` = '')
+	</update>
+</mapper>

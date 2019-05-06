@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.DictMapper">
+
+	<!-- 查询数据字典信息 -->
+	<select id="queryDictList" parameterType="DictData" resultType="DictData">
+		SELECT 
+			ID,DICT_CODE dictCode,dict_value dictValue,INDEXS,
+			CREATED_TIME createdTime,NOTE
+		FROM
+			t_evm_dict
+		WHERE
+			ifnull(is_del,0) = 0
+			<if test="dictValue != null and dictValue != ''">
+				and (
+					dict_value like CONCAT('%',#{dictValue},'%')  
+					or dict_code like CONCAT('%',#{dictValue},'%') 
+				)
+			</if>
+			order by CREATED_TIME desc
+	</select>
+	
+	<!-- 查询参数信息 -->
+	<select id="queryParameterList" parameterType="ParameterData" resultType="ParameterData">
+		SELECT 
+			ID,PARAMETER_NAME parameterName,PARAMETER_VALUE parameterValue,CREATED_TIME createdTime,NOTE
+		FROM
+			t_evm_parameter
+		WHERE
+			ifnull(is_del,0) = 0
+			order by CREATED_TIME desc
+	</select>
+	
+	<!-- 根据ID查询信息 -->
+	<select id="queryParameterById" parameterType="Integer" resultType="ParameterData">
+		SELECT 
+			ID,PARAMETER_NAME parameterName,PARAMETER_VALUE parameterValue,CREATED_TIME createdTime,NOTE
+		FROM
+			t_evm_parameter
+		WHERE
+			ID = #{id}
+	</select>
+	
+	<!-- 添加参数 -->
+	<insert id="addParam" parameterType="ParameterData">
+		INSERT INTO t_evm_parameter
+		(
+			PARAMETER_NAME,PARAMETER_VALUE,NOTE
+		) VALUES
+		(
+			#{parameterName},#{parameterValue},#{note}
+		)
+	</insert>
+	
+	<!-- 删除/修改参数 -->
+	<update id="updateParam" parameterType="ParameterData">
+		UPDATE t_evm_parameter SET
+		<if test="parameterName != null">PARAMETER_NAME = #{parameterName},</if>
+		<if test="parameterValue != null">PARAMETER_VALUE = #{parameterValue},</if>
+		<if test="note != null">NOTE = #{note},</if>
+		<if test="isDel != null">IS_DEL = #{isDel},</if>
+		LAST_MODIFIED_TIME = now()
+		WHERE ID = #{id}
+	</update>
+	
+	<!-- 查询门店所在大区 -->
+	<select id="queryDictByCode" resultType="DictData" parameterType="string">
+		SELECT ID `id`,DICT_CODE `dictCode`,dict_value `dictValue` FROM t_evm_dict WHERE DICT_CODE = #{code}
+	</select>
+	
+<!-- 查询编码是否重复   -->
+	<select id="countDictNum" parameterType="DictData" resultType="java.lang.Integer">
+		select count(*) from t_evm_dict where ifnull(is_del,0)=0 and dict_code=#{dictCode}
+	</select>
+</mapper>

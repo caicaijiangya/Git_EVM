@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.StoreMapper">
+	<select id="selectDataGrid" resultType="Store" parameterType="Store">
+        SELECT
+            s.id,
+            s.store_no storeNo,
+            s.store_name storeName,
+            s.`QR_CODE` `qrCode`,
+            a1.`name` name1,
+            a2.`name` name2,
+            a3.`name` name3,
+            s.ADDRESS_DETAIL addressDetail,
+            s.LONGITUDE,
+            s.LATITUDE,
+            s.province,
+            s.city,
+            s.area,
+            s.mobile_no mobileNo,
+            s.created_time createdTime
+        FROM
+           t_evm_store	s
+        LEFT JOIN
+           t_evm_area a1
+        ON	a1.id =  s.PROVINCE  
+        LEFT JOIN
+           t_evm_area a2
+        ON	a2.id =  s.CITY     
+        LEFT JOIN
+           t_evm_area a3
+        ON	a3.id =  s.AREA 
+        WHERE
+            s.is_del = 0
+            <if test="storeName !=null and storeName!=''">
+            	and (s.store_no like CONCAT('%',#{storeName},'%')
+            	or s.store_name like CONCAT('%',#{storeName},'%')
+            	or s.ADDRESS_DETAIL like CONCAT('%',#{storeName},'%')
+            	or s.mobile_no like CONCAT('%',#{storeName},'%')
+            	or a1.name like CONCAT('%',#{storeName},'%')
+            	or a2.name like CONCAT('%',#{storeName},'%')
+            	or a3.name like CONCAT('%',#{storeName},'%'))
+            </if>
+        order by s.`CREATED_TIME` asc    
+    </select>
+    <update id="updateStoreById" parameterType="java.lang.Integer">
+    	update t_evm_store set is_del=1 where id=#{id}
+    </update>
+    <insert id="insertStore" parameterType="store">
+    	INSERT INTO t_evm_store 
+    	(store_no,store_name,address_detail,longitude,latitude,mobile_no,province,city,area,`DEVICE_ID`,`DEVICE_SECRET`)
+		VALUES
+		(#{storeNo},#{storeName},#{addressDetail},#{longitude},#{latitude},#{mobileNo},#{province},#{city},#{area},#{deviceId},#{deviceSecret})
+    </insert>
+    <select id="selectStoreById" resultType="Store" parameterType="java.lang.Integer">
+        SELECT
+           id,store_no storeNo,store_Name storeName,address_detail addressDetail,
+           longitude,latitude,mobile_no mobileNo,is_del isDel,created_time createdTime,
+           province,city,area,
+           `DEVICE_ID` `deviceId`,
+           `DEVICE_SECRET` `deviceSecret`,
+           last_modified_time lastModified,note
+        FROM
+           t_evm_store	    
+        WHERE
+           id=#{id}  
+    </select>
+    <update id="updateInfoById" parameterType="store">
+    	update t_evm_store set 
+    		store_no=#{storeNo},store_name=#{storeName},address_detail=#{addressDetail},
+    		longitude=#{longitude},latitude=#{latitude},mobile_no=#{mobileNo},province=#{province}
+    		,city=#{city},area=#{area} 
+    		,`DEVICE_ID`=#{deviceId},`DEVICE_SECRET`=#{deviceSecret}
+    		where id=#{id}
+    </update>
+    <update id="updateStoreQrCode" parameterType="Store">
+    	update t_evm_store set `QR_CODE`=#{qrCode} where id=#{id}
+    </update>
+ 	<select id="queryStoreList" parameterType="Store" resultType="Store">
+ 		select id,store_name storeName from t_evm_store where is_del=0
+ 	</select>   
+</mapper>

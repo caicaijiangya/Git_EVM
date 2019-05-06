@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxAiTestMapper">
+	
+	<resultMap type="WxQuestProblem" id="questProblem">
+		<id column="id" property="id"/>
+		<result column="dimensionId" property="dimensionId"/>
+		<result column="title" property="title"/>
+		<result column="type" property="type"/>
+		<result column="seq" property="seq"/>
+		<result column="note" property="note"/>
+		<result column="createdTime" property="createdTime"/>
+		<collection property="details" column="id" ofType="WxQuestProblemDetail" javaType="ArrayList" select="queryQuestProblemDetail"/>
+	</resultMap>
+	<resultMap type="WxQuestResult" id="questResult">
+		<id column="id" property="id"/>
+		<result column="openId" property="openId"/>
+		<result column="userName" property="userName"/>
+		<result column="conclusionName" property="conclusionName"/>
+		<result column="score" property="score"/>
+		<result column="realScore" property="realScore"/>
+		<result column="createdTime" property="createdTime"/>
+		<result column="key" property="key"/>
+		<collection property="details" column="id" ofType="WxQuestResultDetail" javaType="ArrayList" select="queryQuestResultDetail"/>
+	</resultMap>
+
+
+	<!-- new 通过问题ID查询本题具体选项和名称 -->
+	<select id="queryAiTestDetailByProblemId" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDetailDto" parameterType="java.lang.Integer">
+		SELECT
+		qp.seq page,
+		qpd.title as name,
+		qpd.seq as value
+		FROM
+		t_evm_ai_test_problem_detail qpd
+		LEFT JOIN t_evm_ai_test_problem qp ON qp.id = qpd.problem_id
+		WHERE
+		qp.seq = #{problemId} and qp.is_del = '0'
+	</select>
+	<!-- new 空的问卷题目和具体选项和名称 -->
+	<select id="queryAiTestDetail" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDetailDto">
+		SELECT
+		qp.seq page,
+		qpd.title as name,
+		qpd.seq as value
+		FROM
+		t_evm_ai_test_problem_detail qpd
+		LEFT JOIN t_evm_ai_test_problem qp ON qp.id = qpd.problem_id
+		WHERE  qp.is_del = '0'
+	</select>
+	<!-- new 查询题目名称 -->
+	<select id="queryQuestName" resultType="java.lang.String" parameterType="java.lang.Integer">
+		SELECT
+		qp.title
+		FROM
+		t_evm_ai_test_problem qp
+		WHERE
+		qp.seq = #{seq} and qp.is_del = '0'
+	</select>
+
+
+	<!-- new 通过openID查询测试的题目题号和选择的那一项 -->
+	<select id="queryQuestResultAndScore" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDto" parameterType="PagingDto">
+		SELECT DISTINCT
+		qr.open_id,
+		qr.id testId,
+		qp.seq-1 as page,
+		qrd.score,
+		qp.title as name,
+		qp.sort,
+		qp.icon,
+		qp.name,
+		qp.comment AS title
+		FROM
+		t_evm_ai_test_result_detail qrd
+		LEFT JOIN t_evm_ai_test_result qr ON qr.ID = qrd.result_id
+		LEFT JOIN t_evm_ai_test_problem_detail qpd ON qpd.PROBLEM_ID = qrd.problem_id
+		LEFT JOIN t_evm_ai_test_problem qp ON qp.ID = qpd.PROBLEM_ID
+		WHERE
+		qp.is_del = '0'
+		AND qr.ID = (
+		SELECT
+		ID
+		FROM
+		t_evm_ai_test_result
+		WHERE
+		SCORE IS NOT NULL
+		ORDER BY
+		CREATED_TIME DESC
+		LIMIT 1
+		)
+		ORDER BY
+		qr.created_time DESC
+	</select>
+	<!-- new 通过openID查询测试的题目题号和选择的那一项 -->
+	<select id="queryQuestResultAndScore1" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDto" parameterType="PagingDto">
+		SELECT DISTINCT
+		qr.open_id,
+		qr.id testId,
+		qp.seq-1 as page,
+		qrd.score,
+		qp.title as name,
+		qp.sort,
+		qp.icon,
+		qp.name,
+		qp.comment AS title,
+		qrd.value
+		FROM
+		t_evm_ai_test_result_detail qrd
+		LEFT JOIN t_evm_ai_test_result qr ON qr.ID = qrd.result_id
+		LEFT JOIN t_evm_ai_test_problem_detail qpd ON qpd.PROBLEM_ID = qrd.problem_id
+		LEFT JOIN t_evm_ai_test_problem qp ON qp.ID = qpd.PROBLEM_ID
+		WHERE
+		qp.is_del = '0' AND qr.OPEN_ID = #{openId}
+		AND qr.ID = (
+		SELECT
+		ID
+		FROM
+		t_evm_ai_test_result
+		WHERE OPEN_ID = #{openId}
+
+		ORDER BY
+		CREATED_TIME DESC
+		LIMIT 1
+		)
+		ORDER BY
+		qr.created_time DESC
+	</select>
+
+	<!-- new 通过openID查询历史测试数量 -->
+	<select id="queryCountByOpenId" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT
+		count(*)
+		FROM
+		t_evm_ai_test_result
+		WHERE
+		open_id = #{openId}
+	</select>
+
+	<!-- 新增一条空的结果（点击开始测试） -->
+	<insert id="insertANullResult" parameterType="PagingDto" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_ai_test_result
+		(`OPEN_ID`)
+		values
+		(#{openId})
+	</insert>
+	<!-- new 通过openID查询测试结果Id -->
+	<select id="queryTestIdByOpenId" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT
+		id as quest_id
+		FROM
+		t_evm_ai_test_result
+		WHERE
+		open_id = #{openId}
+		ORDER BY CREATED_TIME DESC
+		LIMIT 1
+	</select>
+
+	<!-- 新增测试结果 -->
+	<insert id="insertAiTestResultNew" parameterType="WxAITestResult" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_ai_test_result
+		(`OPEN_ID`,`CONCLUSION_ID`,`SCORE`,`REAL_SCORE`)
+		values
+		(#{openId},#{conclusionId},#{score},#{realScore})
+	</insert>
+	<!-- 新增测试结果明细 -->
+	<insert id="insertAiTestResultDetailNew" parameterType="WxAITestResultDetail" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_ai_test_result_detail
+		(`RESULT_ID`,`PROBLEM_ID`,`SCORE`,`VALUE`)
+		values
+		(#{quest_id},#{problemId},#{score},#{value})
+	</insert>
+	<update id="updateAiTestResultDetail" parameterType="WxAITestResultDetail">
+		update t_evm_ai_test_result_detail
+		set `SCORE` = #{score},`VALUE` = #{value}
+		where `PROBLEM_ID` = #{problemId}
+		and `RESULT_ID` = #{quest_id}
+	</update>
+	<!--查询是否做过这道题-->
+	<select id="queryOptionCount" resultType="java.lang.Integer" parameterType="WxAITestResultDetail">
+		SELECT
+		COUNT(*)
+		FROM
+		t_evm_ai_test_result_detail
+		WHERE
+		result_id = #{quest_id}
+		AND problem_id = #{problemId}
+		AND is_del = '0'
+	</select>
+	<!-- 通过结论名字查询结论ID -->
+	<select id="queryConclusionId" resultType="java.lang.Integer" parameterType="java.lang.String">
+		SELECT
+		id
+		FROM
+		t_evm_ai_test_conclusion
+		WHERE
+		KEY = #{conclusionName}
+	</select>
+	<!-- 问卷自测结果 -->
+	<select id="queryLastResult" resultType="com.bluekjg.wxapp.model.wxApp20.LastResult" parameterType="PagingDto">
+		SELECT
+		qd. NAME,
+		qrd.score
+		FROM
+		t_evm_ai_test_dimension qd
+		LEFT JOIN t_evm_ai_test_result_detail qrd ON qrd.dimension_id = qd.id
+		LEFT JOIN t_evm_ai_test_result qr ON qr.id = qrd.result_id
+		WHERE
+		qrd.is_del = '0'
+		AND qr.open_id = #{openId}
+
+	</select>
+
+
+	<!-----------------------------------todo---------------------------------------------------->
+	<!-- 从用户表中抽取前四道题的答案 -->
+	<select id="queryUserInfoForFirstFourQuestions" resultType="com.bluekjg.wxapp.model.wxApp20.LastResult" parameterType="PagingDto">
+		SELECT
+			USER_NAME,
+			CASE
+		WHEN (SEX = 1) THEN
+			'男'
+		WHEN (SEX = 2) THEN
+			'女'
+		ELSE
+			'X'
+		END AS SEX,
+		 consumption_level,
+		 date_of_birth
+		FROM
+			t_evm_wx_user
+		WHERE open_ID = #{openId}
+	</select>
+
+
+
+
+
+</mapper>

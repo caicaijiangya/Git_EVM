@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxKeeperMapper">
+	
+   <!-- 查询到店取货量 -->
+   <select id="queryOrderDetailCount" resultType="java.lang.Integer" parameterType="PagingDto">
+      select ifnull(sum(od.goods_nums),0) 
+		from t_evm_order_detail od 
+		left join t_evm_order o on o.id = od.order_id
+		left join t_evm_store s on s.`id` = o.`store_id`
+		where od.IS_DEL = 0 
+		and s.`ID` = #{id} 
+		and o.status = 6
+		and o.take_style = 1
+		and od.CREATED_TIME &gt; #{startDate} and od.CREATED_TIME &lt;= #{endDate}
+   </select>
+   <!-- 查询订单总金额 -->
+   <select id="queryOrderDetailPrice" resultType="java.lang.Double" parameterType="PagingDto">
+      select ifnull(sum(ot.`BALANCES`),0)  
+		from t_evm_order o
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID`
+		LEFT JOIN t_evm_store s on s.`ID` = o.`STORE_ID`
+		where o.IS_DEL = 0 
+		and s.`ID` = #{id} 
+		and o.`STATUS` in (1,2,6) 
+		and o.take_style = 1
+		and o.CREATED_TIME &gt; #{startDate} and o.CREATED_TIME &lt;= #{endDate}
+   </select>
+   <!-- 查询订单优惠总金额 -->
+   <select id="queryDiscountPrice" resultType="java.lang.Double" parameterType="PagingDto">
+      select ifnull(sum(o.`DISCOUNT_PRICE`),0)  
+		from t_evm_order o
+		LEFT JOIN t_evm_store s on s.`ID` = o.`STORE_ID`
+		where o.IS_DEL = 0 
+		and s.`ID` = #{id} 
+		and o.`STATUS` in (1,2,6) 
+		and o.take_style = 1
+		and o.CREATED_TIME &gt; #{startDate} and o.CREATED_TIME &lt;= #{endDate}
+   </select>
+<!-- 查询到店取货的订单量 -->
+   <select id="queryOrderCount" resultType="java.lang.Integer" parameterType="PagingDto">
+      select ifnull(count(*),0) 
+		from t_evm_order o
+		LEFT JOIN t_evm_store s on s.`ID` = o.`STORE_ID`
+		where o.IS_DEL = 0 
+		and s.`ID` = #{id} 
+		and o.`STATUS` in(1,2,6)
+		and o.take_style = 1
+		and o.CREATED_TIME &gt; #{startDate} and o.CREATED_TIME &lt;= #{endDate}
+   </select>
+   
+</mapper>

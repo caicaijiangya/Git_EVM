@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxKeeperEmployeesMapper">
+	<!-- 查询用户二维码 -->
+	<select id="queryQrcode" resultType="java.lang.String" parameterType="PagingDto">
+		select uq.`QR_CODE` from t_evm_wx_user_qrcode uq where uq.`OPEN_ID` = #{openId} and uq.`TYPE` = #{rectifyType} and uq.`IS_DEL` = 0
+	</select>
+	<insert id="insertQrcode" parameterType="PagingDto">
+		insert into t_evm_wx_user_qrcode (`OPEN_ID`,`QR_CODE`,`TYPE`) values (#{openId},#{code},#{rectifyType})
+	</insert>
+	<!-- 新增员工信息 -->
+	<insert id="insertUserEmp" parameterType="PagingDto">
+		<if test="rectifyType == 0">
+			insert into t_evm_wx_user_emp (`OPEN_ID`,`EMP_OPEN_ID`) values (#{openId},#{scanOpenId})
+		</if>
+		
+	</insert>
+	<update id="updateUser" parameterType="UserBean">
+		update t_evm_wx_user set 
+		<if test="nickName != null">
+			`USER_NAME` = #{nickName},
+		</if>
+		<if test="nickName != null">
+			`NICK_NAME` = #{nickName},
+		</if>
+		<if test="headImgUrl != null">
+			`HEAD_IMG_URL` = #{headImgUrl},
+		</if>
+		<if test="country != null">
+			`COUNTRY` = #{country},
+		</if>
+		<if test="province != null">
+			`PROVINCE` = #{province},
+		</if>
+		<if test="city != null">
+			`CITY` = #{city},
+		</if>
+		<if test="sex != null">
+			`SEX` = #{sex},
+		</if>
+		<if test="mobileNo != null">
+			`MOBILE_NO` = #{mobileNo},
+		</if>
+		<if test="userType != null">
+			`USER_TYPE` = #{userType},
+		</if>
+		<if test="storeId != null">
+			`STORE_ID` = #{storeId},
+		</if>
+		<if test="isDel != null">
+			`IS_DEL` = #{isDel},
+		</if>
+		LAST_MODIFIED_TIME = now()
+		where `OPEN_ID` = #{openId}
+	</update>
+	
+	
+	<!-- 查询员工审核列表 -->
+	<select id="queryUserEmp" resultType="UserBean" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+		        ue.`ID` `id`,
+		        u.`OPEN_ID` `openId`,
+		        u.`USER_NAME` `userName`,
+		        u.`MOBILE_NO` `mobileNo`,
+		        s.`STORE_NAME` `storeName`,
+		        (u1.`USER_TYPE` + 1) `userType`,
+		        ue.`STATUS` `status` 
+				from t_store_xs_wx_user_emp ue 
+				LEFT JOIN t_store_xs_wx_user u on u.`OPEN_ID` = ue.`EMP_OPEN_ID` 
+				LEFT JOIN t_store_xs_wx_user u1 on u1.`OPEN_ID` = ue.`OPEN_ID` 
+				LEFT JOIN t_store_xs_store s on u.`STORE_ID` = s.`ID` 
+				where ue.`IS_DEL` = 0 and ue.`OPEN_ID` = #{openId}
+				ORDER BY ue.`CREATED_TIME` DESC 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<![CDATA[ limit 0,#{pageSize}  ]]>
+	</select>
+	
+	<update id="updateUserEmp" parameterType="UserBean">
+		update t_evm_wx_user_emp set 
+		<if test="status != null">
+			`STATUS` = #{status},
+		</if>
+		<if test="isDel != null">
+			`IS_DEL` = #{isDel},
+		</if>
+		LAST_MODIFIED_TIME = now()
+		where `ID` = #{id}
+	</update>
+	<update id="editUserType" parameterType="UserBean">
+		update t_evm_wx_user set 
+		user_type=3 , store_id=#{storeId},
+		LAST_MODIFIED_TIME = now()
+		where `OPEN_ID` = #{openId}
+	</update>
+</mapper>

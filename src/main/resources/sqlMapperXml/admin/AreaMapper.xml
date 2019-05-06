@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.AreaMapper">
+<!-- 查询所有省份 -->
+	<select id="queryProvinceList" resultType="Area" parameterType="Area">
+        SELECT
+            a.id,a.name
+        FROM
+            t_evm_area a  
+        WHERE
+            a.is_del = 0
+            and a.pid=0
+        order by a.ID desc    
+    </select>
+<!-- 查询市 -->
+	<select id="queryCityList" resultType="Area" parameterType="Area">
+        SELECT
+            a.id,a.name
+        FROM
+            t_evm_area a  
+        WHERE
+            a.is_del = 0
+            and a.pid=#{provinceId}
+        order by a.ID desc    
+    </select> 
+<!-- 查询区 -->
+	<select id="queryAreaList" resultType="Area" parameterType="Area">
+        SELECT
+            a.id,a.name
+        FROM
+            t_evm_area a  
+        WHERE
+            a.is_del = 0
+            and a.pid=#{cityId}
+        order by a.ID desc    
+    </select>       
+
+    <resultMap id="cityMap" type="com.bluekjg.core.commons.result.City" >
+	    <id column="id" property="id"/>
+	    <result column="name" property="name"></result>
+	    <result column="area_no" property="code"></result>
+	    <collection column="id" property="sub" select="getCityLevel"></collection>
+	</resultMap>
+	
+	<!-- 查询城市层级 --> 
+	<select id="getCityLevel" resultMap="cityMap" >
+	    select 
+	    id,
+	    name,
+	    area_no,
+	    pid
+	    from t_evm_area 
+	    where IS_DEL= 0 
+	    AND pid=#{pid}
+	</select>
+
+	<!-- 查询全部城市 --> 
+	<select id="getCity" resultType="com.bluekjg.core.commons.result.City" >
+	    select 
+	    id,
+	    name,
+	    area_no,
+	    pid
+	    from t_evm_area 
+	    where IS_DEL= 0 
+	</select>
+	
+</mapper>

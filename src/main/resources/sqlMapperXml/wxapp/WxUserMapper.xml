@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxUserMapper">
+    <!-- 通用查询结果列-->
+    <sql id="userColumn">
+     ID,
+     OPEN_ID openId,
+     STORE_ID storeId,
+     MOBILE_NO mobileNo,
+     USER_NAME userName,
+     NICK_NAME nickName,
+     HEAD_IMG_URL headImgUrl,
+     INTEGRAL,
+     MONEY,
+     SEX,
+     COUNTRY,
+     PROVINCE,
+     IS_AUTH isAuth,
+     CITY,
+     USER_TYPE userType,
+     UNION_ID unionId,
+     CREATED_TIME createdTime
+   </sql>
+
+   <!-- 获取用户信息 -->
+   <select id="queryWxUserInfo" resultType="UserBean">
+      select <include refid="userColumn" />
+      from t_evm_wx_user where open_id = #{openId}
+   </select>
+   
+   <!-- 获取门店店员信息 -->
+   <select id="queryWxUserInfoByStoreId" resultType="UserBean" parameterType="Integer">
+      select <include refid="userColumn" />
+      from t_evm_wx_user where `IS_DEL` = 0 and `USER_TYPE` != 4 and `STORE_ID` = #{storeId}
+   </select>
+
+	<!-- 根据OpenId查询用户信息 -->
+    <select id="selectByOpenId" resultType="UserBean" parameterType="java.lang.String">
+        select
+	        t.`ID` AS `id`, 
+	        t.`STORE_ID` AS `storeId`,
+	        t.`OPEN_ID` AS `openId`, 
+	        t.`MOBILE_NO` AS `mobileNo`,
+	        t.`USER_NAME` AS `userName`,
+	        t.`NICK_NAME` AS `nickName`,
+	        t.`HEAD_IMG_URL` AS `headImgUrl`,
+	        t.`USER_TYPE` AS `userType`,
+	        t.`INTEGRAL` AS `integral`,
+	        t.`INVITE_OPEN_ID` `inviteOpenId`,
+	        t.`SEX` AS `SEX`,
+	        t.`IS_AUTH` AS `isAuth`,
+	        t.`CREATED_TIME` AS `createTime`
+        from 
+        	t_evm_wx_user t 
+        where 
+        	t.`OPEN_ID` = #{value}
+    </select>
+    
+    <!-- 根据手机号查询用户信息 -->
+    <select id="selectTempUserByMobile" resultType="UserBean" parameterType="java.lang.String">
+        select
+        t.`NAME` userName,
+        t.`MOBILE_NO` mobileNo,
+        t.`TYPE` userType
+        from t_evm_temp_user t where t.MOBILE_NO = #{mobileNo}
+    </select>
+    <!-- 新增用户 -->
+    <insert id="insertUserInfo" parameterType="UserBean" useGeneratedKeys="true" keyProperty="id">
+    	INSERT INTO t_evm_wx_user (`OPEN_ID`,`CODE`,`HEAD_IMG_URL`) 
+    	VALUES  
+    	(#{openId},#{code},#{headImgUrl})
+    </insert>
+    <!-- 修改用户信息 -->
+    <update id="updateUserInfo" parameterType="UserBean" useGeneratedKeys="true" keyProperty="id">
+    	UPDATE t_evm_wx_user SET 
+    	<if test="mobileNo != null">
+    		`MOBILE_NO` = #{mobileNo},
+    	</if>
+    	<if test="userName != null">
+    		`USER_NAME` = #{userName},
+    	</if>
+    	<if test="nickName != null">
+    		`NICK_NAME` = #{nickName},
+    	</if>
+    	<if test="headImgUrl != null">
+    		`HEAD_IMG_URL` = #{headImgUrl},
+    	</if>
+    	<if test="sex != null">
+    		`SEX` = #{sex},
+    	</if>
+    	<if test="country != null">
+    		`COUNTRY` = #{country},
+    	</if>
+    	<if test="province != null">
+    		`PROVINCE` = #{province},
+    	</if>
+    	<if test="city != null">
+    		`CITY` = #{city},
+    	</if>
+    	<if test="money != null">
+    		`MONEY` = #{money},
+    	</if>
+    	<if test="integral != null">
+    		`INTEGRAL` = #{integral},
+    	</if>
+    	<if test="userType != null">
+    		`USER_TYPE` = #{userType},
+    	</if>
+    	<if test="isAuth != null">
+    		`IS_AUTH` = #{isAuth},
+    	</if>
+    	LAST_MODIFIED_TIME = now()
+    	WHERE `OPEN_ID` = #{openId}
+    </update>
+    
+    <update id="updateDsr" parameterType="UserBean" useGeneratedKeys="true" keyProperty="id">
+    	UPDATE t_evm_dsr SET 
+    	`WX_USER_ID` = #{id},
+    	LAST_MODIFIED_TIME = now()
+    	WHERE `MOBILE_NO` = #{mobileNo}
+    </update>
+    
+    <update id="updateBa" parameterType="UserBean" useGeneratedKeys="true" keyProperty="id">
+    	UPDATE t_evm_ba SET  
+    	`WX_USER_ID` = #{id},
+    	LAST_MODIFIED_TIME = now()
+    	WHERE `MOBILE_NO` = #{mobileNo}
+    </update>
+    <update id="updateLeader" parameterType="UserBean" useGeneratedKeys="true" keyProperty="id">
+    	UPDATE t_evm_leader SET  
+    	`WX_USER_ID` = #{id},
+    	LAST_MODIFIED_TIME = now()
+    	WHERE `MOBILE_NO` = #{mobileNo}
+    </update>
+    <!-- 更新用户所属门店 -->
+    <update id="updateUserStore" parameterType="UserBean">
+    	update t_evm_wx_user set `STORE_ID` = #{storeId},`LAST_MODIFIED_TIME` = NOW() where `OPEN_ID` = #{openId} 
+    </update>
+    
+<!-- 查询店员信息及权限操作 -->
+	<resultMap type="UserBean" id="userAuthority">
+		<id column="id" property="id"/>
+		<result column="open_id" property="openId"/>
+		<result column="user_name" property="userName"/>
+		<result column="nick_name" property="nickName"/>
+		<result column="mobile_no" property="mobileNo"/>
+		<result column="user_type" property="userType"/>
+		<collection property="authorityList"  column="open_id" ofType="WxKeeperIndexModel" 
+		javaType="ArrayList" select="selectUserAuthority"></collection>
+	</resultMap>   
+	<!-- 查询所有店员信息 -->   
+	<select id="getAssistantnList" resultMap="userAuthority" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+		        	u.id,u.OPEN_ID,u.USER_NAME,u.NICK_NAME,
+					u.MOBILE_NO,u.USER_TYPE
+				from t_evm_wx_user u
+				where u.IS_DEL = 0
+				and u.`store_id` = #{storeId}
+				and u.user_type=3
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	<!-- 查询权限模块 -->
+   	<select id="selectUserAuthority" resultType="WxKeeperIndexModel" parameterType="java.lang.String">
+      SELECT
+      	m.id,
+		m.model_name modelName,
+		(select count(*) from t_evm_model_user 
+			where open_id=#{openId} and is_del=0 and model_id=m.id) isAuth
+	  FROM
+		t_evm_index_model m	
+	  WHERE
+		m.IS_DEL = 0
+   	</select>   
+	
+<!-- 删除用户 -->	
+	<update id="deleteAssistantn" parameterType="UserBean">
+    	UPDATE t_evm_wx_user SET `STORE_ID` = NULL,`USER_TYPE` = 4 WHERE ID = #{id}
+    </update>
+    <delete id="deleteModelUserByOpenId" parameterType="UserBean">
+    	delete from t_evm_model_user where `OPEN_ID` = (select u.`OPEN_ID` from t_evm_wx_user u where u.`ID` = #{id})
+    </delete>
+    
+<!-- 修改个人信息pjf  --> 
+	<update id="editUserInfo" parameterType="UserBean">
+		update t_evm_wx_user set user_name=#{userName},mobile_no=#{mobileNo},
+				sex=#{sex},IS_AUTH=1 where is_del=0 and open_id=#{openId}
+	</update>  
+    <!-- 查询当天分享获取积分情况 -->
+    <select id="selectShareIntegralDay" resultType="Integer" parameterType="String">
+    	select SUM(INTEGRAL) from t_evm_wx_user_integral_log uil 
+		where uil.`TYPE` = 5 
+		and uil.`OPEN_ID` = #{openId} 
+		and DATE_FORMAT(uil.`CREATED_TIME`,'%Y-%m-%d') = DATE_FORMAT(now(),'%Y-%m-%d') 
+		<if test="note != null">
+			and uil.`NOTE` = #{note} 
+		</if>
+    </select>
+    <!-- 积分记录 -->
+    <select id="selectIntegralLog" resultType="WxIntegralLog" parameterType="PagingDto">
+    	SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+				uil.`TITLE` `title`,
+				uil.`INTEGRAL` `integral`,
+				DATE_FORMAT(uil.`CREATED_TIME`,'%Y-%m-%d %H:%i') `createdTime`
+				from t_evm_wx_user_integral_log uil
+				where uil.`OPEN_ID` = #{openId} 
+				order by uil.`CREATED_TIME` desc 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+    </select>
+    <!-- 查询当月签到记录 -->
+    <select id="selectMyCheckin" resultType="WxIntegralLog" parameterType="PagingDto">
+    	select 
+				uil.`TITLE` `title`,
+				uil.`INTEGRAL` `integral`,
+				DATE_FORMAT(uil.`CREATED_TIME`,'%Y-%c-%e') `createdTime`
+				from t_evm_wx_user_integral_log uil
+				where uil.`TYPE` = 0 and uil.`OPEN_ID` = #{openId} and DATE_FORMAT(uil.`CREATED_TIME`,'%Y-%m') = DATE_FORMAT(NOW(),'%Y-%m')
+				order by uil.`CREATED_TIME` asc 
+    </select>
+    <insert id="insertIntegralLog" parameterType="WxIntegralLog">
+    	insert into t_evm_wx_user_integral_log(`OPEN_ID`,`TITLE`,`INTEGRAL`,`TYPE`,`NOTE`) values (#{openId},#{title},#{integral},#{type},#{note})
+    </insert>
+    <!-- 查询我的优惠券数量 -->
+    <select id="selectUserCouponCount" resultType="Integer" parameterType="PagingDto">
+    	select count(uc.`ID`) from t_evm_wx_user_coupon uc where uc.`IS_DEL` = 0 and uc.`STATUS` = 0 and uc.`OPEN_ID` = #{openId} 
+    </select>
+    
+    <!-- 查询积分记录 -->
+    <select id="selectUserIntegralLogCount" resultType="Integer" parameterType="PagingDto">
+    	select count(il.`ID`) from t_evm_wx_user_integral_log il where il.`TYPE` = #{type} and il.`OPEN_ID` = #{openId}
+    </select>
+    <!-- 查询是否为新用户 -->
+    <select id="selectUserIsNew" resultType="Integer" parameterType="String">
+    	select count(u.`ID`) from t_evm_wx_user u where u.`OPEN_ID` = #{openId} and NOW() &lt; DATE_ADD(u.`CREATED_TIME`,INTERVAL 10 SECOND)
+    </select>
+    <update id="updateUserInvityOpenId" parameterType="String">
+    	update t_evm_wx_user set `INVITE_OPEN_ID` = #{invityOpenId} where `OPEN_ID` = #{openId}
+    </update>
+    <resultMap type="WxIntegralActivity" id="integralActivity">
+		<id column="id" property="id"/>
+		<result column="title" property="title"/>
+		<result column="type" property="type"/>
+		<result column="multiple" property="multiple"/>
+		<result column="integral" property="integral"/>
+		<collection property="storeList"  column="id" ofType="Integer" javaType="ArrayList" select="selectIntegralActivityStore"></collection>
+	</resultMap>
+    <!-- 查询积分规则 -->
+    <select id="selectIntegralActivity" resultMap="integralActivity" parameterType="Integer">
+    	select
+		ia.`ID` `id`,
+		ia.`TITLE` `title`,
+		ia.`TYPE` `type`,
+		ia.`MULTIPLE` `multiple`,
+		ia.`INTEGRAL` `integral`
+	from t_evm_integral_activity ia 
+		where ia.`IS_DEL` = 0 
+		and ia.`TYPE` = #{type} 
+		and NOW() BETWEEN ia.`START_TIME` and ia.`END_TIME` 
+    </select>
+    <select id="selectIntegralActivityStore" resultType="Integer" parameterType="Integer">
+    	select ias.`STORE_ID` 
+    	from t_evm_integral_activity_store ias where ias.`IS_DEL` = 0 and ias.`INTEGRAL_ACTIVITY_ID` = #{id}
+    </select>
+    <!-- 查询是否黑名单用户 -->
+    <select id="queryBlacklist" resultType="UserBean" parameterType="String">
+    	select 
+    	ub.`ID` `id`,
+    	ub.`OPEN_ID` `openId`  
+    	from t_evm_wx_user_blacklist ub 
+    	where ub.`OPEN_ID` = #{openId}
+    </select>
+</mapper>

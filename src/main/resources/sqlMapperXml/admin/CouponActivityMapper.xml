@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.CouponActivityMapper">
+	<!-- 查询优惠券活动列表 -->
+	<select id="selectDataGrid" resultType="CouponActivity" parameterType="CouponActivity">
+        SELECT
+            ca.`ID` `id`,
+            c.`ID` `couponId`,
+            c.`COUPON_NO` `couponNo`,
+            c.`TITLE` `couponName`,
+            ca.`TITLE` `title`,
+            ca.`LIKE_URL` `likeUrl`,
+            ca.`USER_NUM` `userNum`,
+            ca.`USER_DAY_NUM` `userDayNum`,
+            ca.`COUPON_NUM` `couponNum`,
+            ca.`IS_COUPON_NUM` `isCouponNum`,
+            ca.`TYPE` `type`,
+            ca.`STATUS` `status`,
+            DATE_FORMAT(ca.START_TIME,'%Y-%m-%d %H:%i:%s')  startTime,
+            DATE_FORMAT(ca.END_TIME,'%Y-%m-%d %H:%i:%s') endTime,
+            ca.`CREATED_TIME` `createdTime` 
+        FROM t_evm_coupon_activity ca
+        left join t_evm_coupon c on c.`ID` = ca.`COUPON_ID`  
+        WHERE
+            ca.`IS_DEL` = 0 
+            <if test="title!=null and title!=''">
+            	and (c.`TITLE` like CONCAT('%',#{title},'%')
+					or c.COUPON_DESC like CONCAT('%',#{title},'%')
+				)
+            </if>
+        order by ca.`CREATED_TIME` desc    
+	</select>
+
+	<!-- 根据ID查询优惠券活动详情-->
+	<select id="selectCouponActivityById" resultType="CouponActivity" parameterType="Integer">
+        SELECT
+           ca.`ID` `id`,
+           c.`ID` `couponId`,
+            c.`COUPON_NO` `couponNo`,
+            c.`TITLE` `couponName`,
+            ca.`TITLE` `title`,
+            ca.`LIKE_URL` `likeUrl`,
+            ca.`USER_NUM` `userNum`,
+            ca.`USER_DAY_NUM` `userDayNum`,
+            ca.`COUPON_NUM` `couponNum`,
+            ca.`IS_COUPON_NUM` `isCouponNum`,
+            ca.`TYPE` `type`,
+            ca.`FORM_TYPE` `formType`,
+            ca.`STATUS` `status`,
+            DATE_FORMAT(ca.START_TIME,'%Y-%m-%d %H:%i:%s')  startTime,
+            DATE_FORMAT(ca.END_TIME,'%Y-%m-%d %H:%i:%s') endTime,
+            ca.`CREATED_TIME` `createdTime` 
+        FROM t_evm_coupon_activity ca
+        left join t_evm_coupon c on c.`ID` = ca.`COUPON_ID`    
+        WHERE  ca.`ID` = #{id} 
+	</select>
+	<!-- 修改优惠券活动链接 -->
+	<update id="updateCouponActivityLikeUrl" parameterType="String">
+		update t_evm_coupon_activity set `LIKE_URL` = #{likeUrl},`LAST_MODIFIED_TIME` = NOW() where `ID` = #{id} 
+	</update>
+	
+	<update id="updateCouponActivity" parameterType="CouponActivity">
+		update t_evm_coupon_activity set
+		<if test="couponId != null">
+			`COUPON_ID` = #{couponId},
+		</if>
+		<if test="title != null">
+			`TITLE` = #{title},
+		</if>
+		<if test="userNum != null">
+			`USER_NUM` = #{userNum},
+		</if>
+		<if test="userDayNum != null">
+			`USER_DAY_NUM` = #{userDayNum},
+		</if>
+		<if test="couponNum != null">
+			`COUPON_NUM` = `COUPON_NUM` + #{couponNum},
+		</if>
+		<if test="isCouponNum != null">
+			`IS_COUPON_NUM` =  #{isCouponNum},
+		</if>
+		<if test="type != null">
+			`TYPE` =  #{type},
+		</if>
+		<if test="formType != null">
+			`FORM_TYPE` =  #{formType},
+		</if>
+		<if test="startTime != null">
+			`START_TIME` =  #{startTime},
+		</if>
+		<if test="endTime != null">
+			`END_TIME` =  #{endTime},
+		</if>
+		`LAST_MODIFIED_TIME` = NOW() 
+		where `ID` = #{id} 
+	</update>
+</mapper>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.PopConfigMapper">
+	<!-- 查询列表 -->
+	<select id="selectDataGrid" resultType="PopConfig" parameterType="PopConfig">
+        select 
+		pc.`ID` `id`,
+		pc.`TITLE` `title`,
+		pc.`TYPE` `type`,
+		pc.`STATUS` `status`,
+		pc.`URL` `url`,
+		pc.`TIMING` `timing`,
+		pc.`NOTE` `note`,
+		c.`TITLE` `couponName`,
+		sf0.`FILE_PATH` `image1`,
+		sf1.`FILE_PATH` `image2`,
+		date_format(pc.`CREATE_TIME`,'%Y-%m-%d %H:%i:%s') `createdTime` 
+		from t_evm_pop_config pc 
+		left join t_evm_coupon c on c.`ID` = pc.`COUPON_ID` 
+		left join t_evm_static_files sf0 on sf0.`RELATION_ID` = pc.`ID` and sf0.`FILE_TYPE` = 0 and sf0.`BIG_TYPE` = 7 and sf0.`SMALL_TYPE` = 0
+		left join t_evm_static_files sf1 on sf1.`RELATION_ID` = pc.`ID` and sf1.`FILE_TYPE` = 0 and sf1.`BIG_TYPE` = 7 and sf1.`SMALL_TYPE` = 1
+		where pc.`IS_DEL` = 0 
+		<if test="title !=null and title!=''">
+        	and pc.`TITLE` like CONCAT('%',#{title},'%')
+        </if> 
+		ORDER BY pc.`CREATE_TIME` DESC
+    </select>	
+    
+    
+    <select id="selectPopConfigById" resultType="PopConfig" parameterType="Integer">
+        select 
+		pc.`ID` `id`,
+		pc.`TITLE` `title`,
+		pc.`COUPON_ID` `couponId`,
+		pc.`TYPE` `type`,
+		pc.`STATUS` `status`,
+		pc.`URL` `url`,
+		pc.`TIMING` `timing`,
+		pc.`NOTE` `note`,
+		sf0.`FILE_PATH` `image1`,
+		sf1.`FILE_PATH` `image2`,
+		date_format(pc.`CREATE_TIME`,'%Y-%m-%d %H:%i:%s') `createdTime` 
+		from t_evm_pop_config pc 
+		left join t_evm_static_files sf0 on sf0.`RELATION_ID` = pc.`ID` and sf0.`FILE_TYPE` = 0 and sf0.`BIG_TYPE` = 7 and sf0.`SMALL_TYPE` = 0
+		left join t_evm_static_files sf1 on sf1.`RELATION_ID` = pc.`ID` and sf1.`FILE_TYPE` = 0 and sf1.`BIG_TYPE` = 7 and sf1.`SMALL_TYPE` = 1
+		where pc.`ID` = #{id} 
+    </select>  
+    
+    <insert id="insertPopConfig" parameterType="PopConfig" useGeneratedKeys="true" keyProperty="id">
+    	insert into t_evm_pop_config (
+    		`TITLE`,
+    		`COUPON_ID`,
+    		`TYPE`,
+    		`URL`,
+    		`TIMING`,
+    		`NOTE`
+    	) values (
+    		#{title},
+    		#{couponId},
+    		#{type},
+    		#{url},
+    		#{timing},
+    		#{note}
+    	)
+    </insert>
+    
+    <update id="updatePopConfig" parameterType="PopConfig">
+    	update t_evm_pop_config set 
+    	`TITLE` = #{title},
+    	`COUPON_ID` = #{couponId},
+    	`TYPE` = #{type},
+    	`URL` = #{url},
+    	`TIMING` = #{timing},
+    	`NOTE` = #{note},
+    	`LAST_MODIFIED_TIME` = NOW() 
+    	where `ID` = #{id}
+    </update>
+    
+    <update id="updateStatus" parameterType="PopConfig">
+    	update t_evm_pop_config set 
+    	<if test="status != null">
+    		`STATUS` = #{status},
+    	</if>
+    	<if test="isDel != null">
+    		`IS_DEL` = #{isDel},
+    	</if>
+    	`LAST_MODIFIED_TIME` = NOW() 
+    	where `ID` = #{id}
+    </update>
+</mapper>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.UserPortraitMapper">
+   
+   <insert id="insertBatch">
+   	INSERT INTO t_evm_user_portrait
+            (id, city, num,ref_date)
+    VALUES
+    <foreach collection ="list" item="user" separator =",">
+         (#{user.id}, #{user.city}, #{user.num},#{user.refDate})
+    </foreach >
+   </insert>
+   
+   <select id="selectTop5" parameterType="Analytics" resultType="UserPortrait" >
+   	SELECT
+		up.city,
+		sum( up.num ) sum 
+	FROM
+		t_evm_user_portrait up 
+	<where>
+		<if test="startDate != null and startDate != ''">
+			 DATE_FORMAT(up.REF_DATE, #{format}) &gt;= #{startDate}
+		</if>
+		<if test="endDate != null and endDate != ''">
+			and DATE_FORMAT(up.REF_DATE, #{format}) &lt;= #{endDate}
+		</if>
+	</where>
+	GROUP BY
+		up.city 
+	ORDER BY
+		sum DESC
+	limit 0,5
+   </select>
+   
+   <select id="selectNumByCity" parameterType="Analytics" resultType="Integer">
+   	SELECT
+		num 
+	FROM
+		t_evm_user_portrait up 
+	WHERE
+		up.city = #{city} 
+	<if test="startDate != null and startDate != ''">
+		and DATE_FORMAT(up.REF_DATE, #{format}) &gt;= #{startDate}
+	</if>
+	<if test="endDate != null and endDate != ''">
+		and DATE_FORMAT(up.REF_DATE, #{format}) &lt;= #{endDate}
+	</if>
+   </select>
+   
+</mapper>

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxStoreMapper">
+	<sql id="storeColumn">
+		t.`id` `id`,
+      t.`store_no` `storeNo`,
+      t.`store_name` `storeName`,
+      t.`address_detail` `addressDetail`,
+      t.`longitude`,
+      t.`latitude`,
+      t.`mobile_no` `mobileNo`,
+      a0.`NAME` 'provinceName',
+      a1.`NAME` 'cityName',
+      a2.`NAME` 'areaName'
+	</sql>
+	
+	<!-- 根据用户查询门店信息 -->
+   <select id="queryStoreByOpenId" resultType="WxStore" parameterType="java.lang.String">
+      select 
+      t.id,
+      t.store_no storeNo,
+      t.store_name storeName,
+      t.address_detail addressDetail,
+      t.longitude,
+      t.latitude,
+      t.mobile_no mobileNo
+      from t_evm_store t 
+      left join t_evm_wx_user u
+      on u.store_id = t.id
+      where 
+      u.`open_id` = #{openId} 
+      and t.`IS_DEL` = 0
+      order by t.id desc  
+   </select>
+<!-- 根据门店ID查询门店信息 -->
+   <select id="queryStoreById" resultType="WxStore" parameterType="java.lang.Integer">
+      select 
+      <include refid="storeColumn" />
+      from t_evm_store t 
+      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+      where t.`IS_DEL` = 0 
+      and t.`ID` = #{id}
+   </select>
+   
+<!-- 查询所有门店信息 -->
+   <select id="queryAllStore" resultType="WxStore" parameterType="java.lang.Integer">
+      select 
+      <include refid="storeColumn" />
+      from t_evm_store t 
+      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+      where t.`IS_DEL` = 0 
+   </select>   
+   
+   <select id="queryStoreByArea" resultType="WxStore" parameterType="PagingDto">
+      SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+			      <include refid="storeColumn" />
+			      from t_evm_store t 
+			      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+			      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+			      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+			      where t.`IS_DEL` = 0
+			      and t.`CITY` = #{areaId} 
+			      order by t.`CREATED_TIME` desc
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+   </select>
+    <select id="queryStoreByAreaId" resultType="com.bluekjg.wxapp.model.wxApp20.StoreDto" parameterType="PagingDto">
+        SELECT
+        es.STORE_NAME as 'name',
+        es.LONGITUDE AS 'lon',
+        es.LATITUDE AS 'lat'
+
+        FROM t_evm_store es WHERE es.AREA = #{areaId}
+        and es.`IS_DEL` = 0
+    </select>
+
+    <!-- 通用接口，通过区号查询门店列表 -->
+    <select id="queryStoreListByAreaId" resultType="WxStore" parameterType="java.lang.Integer">
+        SELECT
+        s.store_name AS storeName,
+        s.store_no AS storeNo,
+        s.address_detail AS addressDetail
+        FROM
+        t_evm_store s
+        WHERE
+        s.is_del = 0
+        AND s.area = #{areaId}
+    </select>
+
+    <!-- 通用接口，通过区号查询code -->
+    <select id="queryCodeByAreaId" resultType="java.lang.String" parameterType="java.lang.Integer">
+        SELECT
+        s.area
+        FROM t_evm_area a
+        LEFT JOIN t_evm_store s
+        ON a.id = s.area
+        WHERE s.area = #{areaId}
+    </select>
+    <!-- 通用接口，通过区号查询name -->
+    <select id="queryNameByAreaId" resultType="java.lang.String" parameterType="java.lang.Integer">
+        SELECT
+        a.name
+        FROM t_evm_area a
+        LEFT JOIN t_evm_store s
+        ON a.id = s.area
+        WHERE s.area = #{areaId}
+    </select>
+
+
+</mapper>

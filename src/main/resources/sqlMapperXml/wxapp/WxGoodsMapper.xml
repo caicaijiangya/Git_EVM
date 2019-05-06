@@ -1,0 +1,547 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxGoodsMapper">
+<!-- 查询订单列表 -->
+	<resultMap type="WxGoods" id="goods">
+		<id column="id" property="id"/>
+		<result column="goodsName" property="goodsName"/>
+		<result column="goodsImages" property="goodsImages"/>
+		<result column="goodsVideo" property="goodsVideo"/>
+		<result column="goodsDesc" property="goodsDesc"/>
+		<result column="goodsSales" property="goodsSales"/>
+		<result column="goodsTotalSales" property="goodsTotalSales"/>
+		<result column="status" property="status"/>
+		<result column="brandId" property="brandId"/>
+		<result column="brandName" property="brandName"/>
+		<result column="note" property="note"/>
+		<collection property="detailImgs"  column="id" ofType="WxStaticFile" javaType="ArrayList" select="queryDetailImageList"></collection>
+		<collection property="advertImgs"  column="id" ofType="WxStaticFile" javaType="ArrayList" select="queryAdvertImageList"></collection>
+		<collection property="labels"  column="id" ofType="WxGoodsLabel" javaType="ArrayList" select="queryGoodsLabelList"></collection>
+		<collection property="specs"  column="id" ofType="WxGoodsLabel" javaType="ArrayList" select="queryGoodsSpecsList"></collection>
+		
+	</resultMap>
+	
+	<resultMap type="WxGoods" id="orderGoods">
+		<id column="id" property="id"/>
+		<result column="goodsName" property="goodsName"/>
+		<result column="goodsImages" property="goodsImages"/>
+		<result column="goodsVideo" property="goodsVideo"/>
+		<result column="goodsDesc" property="goodsDesc"/>
+		<result column="goodsPrice" property="goodsPrice"/>
+		<result column="originalPrice" property="originalPrice"/>
+		<result column="goodsAmount" property="goodsAmount"/>
+		<result column="goodsSales" property="goodsSales"/>
+		<result column="goodsNum" property="goodsNum"/>
+		<result column="specId" property="specId"/>
+		<result column="specName" property="specName"/>
+		<result column="note" property="note"/>
+		<collection property="specs"  column="id" ofType="WxGoodsLabel" javaType="ArrayList" select="queryGoodsSpecsList"></collection>
+	</resultMap>
+	
+	<resultMap type="WxActivityGoods" id="activityGoods">
+		<id column="id" property="id"/>
+		<result column="activityStartTime" property="activityStartTime"/>
+		<result column="activityEndTime" property="activityEndTime"/>
+		<result column="activityType" property="activityType"/>
+		<result column="goodsImages" property="goodsImages"/>
+		<result column="activityGoodsId" property="activityGoodsId"/>
+		<result column="goodsId" property="goodsId"/>
+		<result column="storeId" property="storeId"/>
+		<result column="activityAmount" property="activityAmount"/>
+		<result column="activityPrice" property="activityPrice"/>
+		<result column="buyNum" property="buyNum"/>
+		<result column="collageNum" property="collageNum"/>
+		<result column="collageTime" property="collageTime"/>
+		<result column="isFreeFreight" property="isFreeFreight"/>
+		<result column="storeId" property="storeId"/>
+		<result column="storeName" property="storeName"/>
+		<association property="bargain" column="activityGoodsId" javaType="WxActivityGoodsBargain" select="queryActivityGoodsBargain"></association>
+		<collection property="collages"  column="activityGoodsId" ofType="WxActivityGoodsCollage" javaType="ArrayList" select="queryActivityGoodsCollage"></collection>
+	</resultMap>
+	
+	<!-- 查询我的收藏商品 -->
+	<select id="selectCollectGoods" resultType="WxGoods" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        SELECT
+				g.`ID` `id`,
+				g.`GOODS_NAME` `goodsName`,
+				sf.`FILE_PATH` `goodsImages`,
+				g.`GOODS_DESC` `goodsDesc`,
+				(select if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) from t_evm_goods_spec gs where gs.`IS_DEL` = 0 and gs.`GOODS_ID` = g.`ID` ORDER BY gs.GOODS_PRICE ASC LIMIT 1) `goodsPrice`
+				from t_evm_user_collect uc 
+				left join t_evm_goods g on g.`ID` = uc.`GOODS_ID` 
+				LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+				WHERE uc.`IS_DEL` = 0 and g.`STATUS` = 1 
+				and uc.`OPEN_ID` = #{openId}
+				order by uc.`CREATED_TIME` desc 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	<!-- 插叙商品图片 -->
+	<select id="queryGoodsImages" resultType="String" parameterType="Integer">
+		select sf.`FILE_PATH` from t_evm_static_files sf 
+		where sf.`IS_DEL` = 0 
+		and sf.`RELATION_ID` = #{goodsId} 
+		and sf.`FILE_TYPE` = 0 
+		and sf.`BIG_TYPE` = #{type} 
+		and sf.`SMALL_TYPE` = #{smallType}
+	</select>
+	<!-- 查询我的购物车商品 -->
+	<select id="queryMyCartGoodsList" resultMap="orderGoods" parameterType="PagingDto">
+		SELECT
+		us.`ID` `note`,
+		g.`ID` `id`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+		us.`GOODS_NUM` `goodsNum`,
+		us.`SPEC_ID` `specId`,
+		gs.`SPEC_NAME` `specName` 
+		from t_evm_user_shoppingcart us 
+		left join t_evm_goods g on g.`ID` = us.`GOODS_ID`
+		left join t_evm_goods_spec gs on gs.`ID` = us.`SPEC_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		WHERE us.`IS_DEL` = 0 and g.`STATUS` = 1 and g.`IS_DEL` = 0 and gs.`IS_DEL` = 0 and us.`OPEN_ID` = #{openId}
+	</select>
+	<!-- 商品详情 -->
+	<select id="queryGoodsDetail" resultMap="goods" parameterType="PagingDto">
+		SELECT
+		g.`ID` `id`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		sf1.`FILE_PATH` `goodsVideo`,
+		g.`GOODS_DESC` `goodsDesc`,
+		g.`GOODS_SALES` `goodsSales`,
+		g.`GOODS_TOTAL_SALES` `goodsTotalSales`,
+		g.`STATUS` `status`,
+		g.`BRAND_ID` `brandId`,
+		gb.`NAME` `brandName`,
+		g.`NOTE` `note`
+		from t_evm_goods g 
+		LEFT JOIN t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+		LEFT JOIN t_evm_static_files sf1 on sf1.`IS_DEL` = 0 and sf1.`RELATION_ID` = g.`ID` and sf1.`FILE_TYPE` = 1 and sf1.`BIG_TYPE` = 0 and sf1.`SMALL_TYPE` = 0
+		WHERE g.`IS_DEL` = 0 and g.`STATUS` = 1 and g.`ID` = #{id}
+	</select>	
+	<!-- 订单商品列表 -->
+	<select id="queryOrderGoods" resultMap="orderGoods" parameterType="String">
+		SELECT
+		g.`ID` `id`,
+		gs.`ID` `specId`,
+		gs.`SPEC_NAME` `specName`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0, gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+		gs.`GOODS_PRICE` `originalPrice`,
+		gs.`GOODS_AMOUNT` `goodsAmount`
+		from t_evm_goods_spec gs 
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		WHERE g.`IS_DEL` = 0 and g.`STATUS` = 1 and gs.`IS_DEL` = 0 
+		and  gs.`ID` in 
+		<foreach collection="list" item="obj" separator="," open="(" close=")">
+            #{obj.specId}
+        </foreach>
+	</select>	
+	<!-- 门店商品列表 -->
+	<select id="queryStoreGoods" resultMap="orderGoods" parameterType="String">
+		SELECT
+		g.`ID` `id`,
+		gs.`ID` `specId`,
+		gs.`SPEC_NAME` `specName`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0, gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+		gs.`GOODS_PRICE` `originalPrice`,
+		sg.`GOODS_AMOUNT` `goodsAmount` 
+		from t_evm_store_goods sg
+		left join t_evm_goods_spec gs on gs.`ID` = sg.`SPEC_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		WHERE sg.`IS_DEL` = 0 
+		and g.`IS_DEL` = 0 
+		and g.`STATUS` = 1
+		and gs.`IS_DEL` = 0 
+		and sg.`STORE_ID` = #{storeId} 
+		and sg.`SPEC_ID` in 
+		<foreach collection="list" item="obj" separator="," open="(" close=")">
+            #{obj.specId}
+        </foreach>
+	</select>	
+	<select id="queryAdvertImageList" resultType="WxStaticFile" parameterType="Integer">
+		select sf.`ID` `id`,sf.`FILE_PATH` `filePath` 
+		from t_evm_static_files sf 
+		where sf.`IS_DEL` = 0 
+		and sf.`RELATION_ID` = #{id} 
+		and sf.`FILE_TYPE` = 0 
+		and sf.`BIG_TYPE` = 0 
+		and sf.`SMALL_TYPE` = 1
+	</select>
+	<select id="queryDetailImageList" resultType="WxStaticFile" parameterType="Integer">
+		select sf.`ID` `id`,sf.`FILE_PATH` `filePath` 
+		from t_evm_static_files sf 
+		where sf.`IS_DEL` = 0 
+		and sf.`RELATION_ID` = #{id} 
+		and sf.`FILE_TYPE` = 0 
+		and sf.`BIG_TYPE` = 0 
+		and sf.`SMALL_TYPE` = 2
+	</select>		
+	<select id="queryGoodsLabelList" resultType="WxGoodsLabel" parameterType="Integer">
+		select gl.`ID` `id`,gl.`NAME` `name` 
+		from t_evm_goods_label gl 
+		where gl.`IS_DEL` = 0 
+		and gl.`GOODS_ID` = #{id} 
+		order by gl.`SEQ` asc 
+	</select>
+	<select id="queryGoodsSpecsList" resultType="WxGoodsSpec" parameterType="Integer">
+		select 
+		gs.`ID` `id`,
+		gs.`GOODS_ID` `goodsId`,
+		gs.`GOODS_CODE` `goodsCode`,
+		gs.`SPEC_NAME` `specName`,
+		if(IFNULL(gs.`MARKET_PRICE`,0)&gt;0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+		if(IFNULL(gs.`MARKET_PRICE`,0)&gt;0,gs.`GOODS_PRICE`,0) `marketPrice`,
+		gs.`GOODS_AMOUNT` `goodsAmount`,
+		IFNULL(gs.`GOODS_AMOUNT`,0) + IFNULL(sg1.`GOODS_AMOUNT`,0) `goodsRemAmount`,
+		gs.`GOODS_TOTAL_AMOUNT` `goodsTotalAmount`,
+		sf.`FILE_PATH` `goodsImages`,
+		gs.`SEQ` `seq` 
+		from t_evm_goods_spec gs 
+		left join (
+			select sum(IFNULL(sg.`GOODS_AMOUNT`,0)) `GOODS_AMOUNT`,sg.`SPEC_ID` from t_evm_store_goods sg where sg.`IS_DEL` = 0 group by sg.`SPEC_ID`
+		) sg1 on sg1.`SPEC_ID` = gs.`ID`
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		where gs.`IS_DEL` = 0
+		and gs.`GOODS_ID` = #{id} 
+		order by gs.`SEQ` asc 
+	</select>
+	<select id="queryActivityGoods" resultMap="activityGoods" parameterType="Integer">
+		select
+		a.`ID` `id`,
+		NOW() `activityStartTime`,
+		a.`ACTIVITY_END_TIME` `activityEndTime`,
+		a.`ACTIVITY_TYPE` `activityType`,
+		CASE a.`ACTIVITY_TYPE` WHEN 1 THEN sf2.`FILE_PATH` WHEN 2 THEN sf4.`FILE_PATH` WHEN 3 THEN sf3.`FILE_PATH` WHEN 4 THEN sf5.`FILE_PATH` WHEN 5 THEN sf6.`FILE_PATH` WHEN 6 THEN sf7.`FILE_PATH` WHEN 7 THEN sf8.`FILE_PATH` ELSE sf2.`FILE_PATH` END `goodsImages`,
+		ag.`ID` `activityGoodsId`,
+		ag.`GOODS_ID` `goodsId`,
+		ag.`STORE_ID` `storeId`,
+		ag.`ACTIVITY_AMOUNT` `activityAmount`,
+		ag.`ACTIVITY_PRICE` `activityPrice`,
+		ag.`BUY_NUM` `buyNum`,
+		ag.`IS_FREE_FREIGHT` `isFreeFreight`
+		from t_evm_activity a 
+		<if test="storeId != null">
+			left join t_evm_activity_store aa on aa.`ACTIVITY_ID` = a.`ID`
+			left join t_evm_store s on s.`ID` = aa.`STORE_ID` 
+		</if>
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID`
+		LEFT JOIN t_evm_static_files sf2 on sf2.`IS_DEL` = 0 and sf2.`RELATION_ID` = ag.`GOODS_ID` and sf2.`FILE_TYPE` = 0 and sf2.`BIG_TYPE` = 2 and sf2.`SMALL_TYPE` = 0
+		LEFT JOIN t_evm_static_files sf3 on sf3.`IS_DEL` = 0 and sf3.`RELATION_ID` = ag.`GOODS_ID` and sf3.`FILE_TYPE` = 0 and sf3.`BIG_TYPE` = 3 and sf3.`SMALL_TYPE` = 0
+		LEFT JOIN t_evm_static_files sf4 on sf4.`IS_DEL` = 0 and sf4.`RELATION_ID` = ag.`GOODS_ID` and sf4.`FILE_TYPE` = 0 and sf4.`BIG_TYPE` = 4 and sf4.`SMALL_TYPE` = 0
+		LEFT JOIN t_evm_static_files sf5 on sf5.`IS_DEL` = 0 and sf5.`RELATION_ID` = ag.`GOODS_ID` and sf5.`FILE_TYPE` = 0 and sf5.`BIG_TYPE` = 9 and sf5.`SMALL_TYPE` = 0
+		LEFT JOIN t_evm_static_files sf6 on sf6.`IS_DEL` = 0 and sf6.`RELATION_ID` = ag.`GOODS_ID` and sf6.`FILE_TYPE` = 0 and sf6.`BIG_TYPE` = 10 and sf6.`SMALL_TYPE` = 0
+		LEFT JOIN t_evm_static_files sf7 on sf7.`IS_DEL` = 0 and sf7.`RELATION_ID` = ag.`GOODS_ID` and sf7.`FILE_TYPE` = 0 and sf7.`BIG_TYPE` = 11 and sf7.`SMALL_TYPE` = 0
+		LEFT JOIN t_evm_static_files sf8 on sf8.`IS_DEL` = 0 and sf8.`RELATION_ID` = ag.`GOODS_ID` and sf8.`FILE_TYPE` = 0 and sf8.`BIG_TYPE` = 12 and sf8.`SMALL_TYPE` = 0
+		where a.`IS_DEL` = 0 
+		and ag.`IS_DEL` = 0 
+		and a.`STATUS` = 1 
+		<if test="isType != 1">
+			and a.`ACTIVITY_TYPE` not in (5,6,7) 
+		</if>
+		<if test="storeId != null">
+			and  aa.`STORE_ID` = #{storeId}
+			and ag.`STORE_ID` = #{storeId}
+		</if>
+		and  ag.`GOODS_ID` = #{goodsId}
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME` 
+		limit 1
+	</select>
+	<select id="queryActivityLabelList" resultType="String" parameterType="Integer">
+		select al.`NAME` from t_evm_activity_label al where al.`ACTIVITY_ID` = #{id} order by al.`SEQ` asc
+	</select>
+	<select id="queryActivityGoodsLadder" resultType="WxActivityGoods" parameterType="Integer">
+		select 
+		a.`ID` `id`,
+		NOW() `activityStartTime`,
+		a.`ACTIVITY_END_TIME` `activityEndTime`,
+		a.`ACTIVITY_TYPE` `activityType`,
+		sf.`FILE_PATH` `goodsImages`,
+		ag.`ID` `activityGoodsId`,
+		agbl.`GOODS_ID` `goodsId`,
+		ag.`ACTIVITY_AMOUNT` `activityAmount`,
+		ag.`ACTIVITY_PRICE` `activityPrice`,
+		ag.`BUY_NUM` `buyNum`,
+		ag.`IS_FREE_FREIGHT` `isFreeFreight`  
+		from t_evm_activity a 
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID` 
+		left join t_evm_activity_goods_bargain agb on agb.`ACTIVITY_GOODS_ID` = ag.`ID`
+		left join t_evm_activity_goods_bargain_ladder agbl on agbl.`BARGAIN_ID` = agb.`ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = agbl.`GOODS_ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+		where a.`IS_DEL` = 0 
+		and ag.`IS_DEL` = 0 
+		and a.`STATUS` = 1 
+		and a.`ACTIVITY_TYPE` = 4 
+		and ag.`STORE_ID` = #{storeId}
+		and  agbl.`GOODS_ID` = #{id} and agbl.`GOODS_NUM` = #{num} 
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME` 
+	</select>
+	<select id="queryActivityGoodsCollage" resultType="WxActivityGoodsCollage" parameterType="Integer">
+		select 
+		agc.`ID` `id`,
+		agc.`ACTIVITY_GOODS_ID` `activityGoodsId`,
+		IFNULL(agc.`COLLAGE_NUM`,0) `collageNum`,
+		agc.`COLLAGE_TIME` `collageTime`,
+		agc.`COLLAGE_PRICE` `collagePrice`  
+		from t_evm_activity_goods_collage agc 
+		where agc.`ACTIVITY_GOODS_ID` = #{id}
+		order by agc.`COLLAGE_PRICE` asc
+	</select>
+	<select id="queryActivityGoodsBargain" resultType="WxActivityGoodsBargain" parameterType="Integer">
+		select 
+		agb.`ID` `id`,
+		agb.`ACTIVITY_GOODS_ID` `activityGoodsId`,
+		agb.`BARGAIN_NUM` `bargainNum`,
+		agb.`BARGAIN_TYPE` `bargainType`,
+		agb.`HELP_BARGAIN_NUM` `helpBargainNum`,
+		agb.`GIVING_NUM` `givingNum`,
+		agb.`PRICE` `price`,
+		agb.`COUPON_ID` `couponId`,
+		c.`TITLE` `couponName`,
+		agb.`INTEGRAL` `integral`,
+		agb.`TYPE` `type`,
+		agb.`TIME` `time`,
+		sf0.`FILE_PATH` `image0`,
+		sf1.`FILE_PATH` `image1`,
+		sf2.`FILE_PATH` `image2`
+		from t_evm_activity_goods_bargain agb 
+		left join t_evm_static_files sf0 on sf0.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf0.`FILE_TYPE` = 0 and sf0.`BIG_TYPE` = 8 and sf0.`SMALL_TYPE` = 0
+		left join t_evm_static_files sf1 on sf1.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf1.`FILE_TYPE` = 0 and sf1.`BIG_TYPE` = 8 and sf1.`SMALL_TYPE` = 1
+		left join t_evm_static_files sf2 on sf2.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf2.`FILE_TYPE` = 0 and sf2.`BIG_TYPE` = 8 and sf2.`SMALL_TYPE` = 2
+		left join t_evm_coupon c on c.`ID` = agb.`COUPON_ID`
+		where agb.`ACTIVITY_GOODS_ID` = #{id}
+	</select>
+	
+	<!-- 拼团列表 -->
+	<select id="queryCollageGoodsList" resultType="WxCollageGoods" parameterType="Integer">
+		select 
+		cg.`ID` `id`,
+		cg.`ACTIVITY_ID` `activityId`,
+		cg.`GOODS_ID` `goodsId`,
+		cg.`JOIN_NUM` `joinNum`,
+		IFNULL(agc.`COLLAGE_NUM` ,0)`collageNum`,
+		NOW() `startTime`,
+		cg.`END_TIME` `endTime`,
+		u.`USER_NAME` `userName`,
+		u.`HEAD_IMG_URL` `headImgUrl` 
+		from t_evm_collage_goods cg 
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = cg.`ACTIVITY_ID` and ag.`GOODS_ID` = cg.`GOODS_ID` 
+		left join t_evm_activity_goods_collage agc on agc.`ID` = cg.`COLLAGE_ID`
+		left join t_evm_collage_goods_detail cgd on cgd.`COLLAGE_ID` = cg.`ID` and cgd.`IS_COLLAGE` = 0 
+		left join t_evm_wx_user u on u.`OPEN_ID` = cgd.`OPEN_ID` 
+		where cg.`IS_DEL` = 0 
+		and ag.`IS_DEL` = 0 
+		and cg.`STATUS` = 0 
+		and cg.JOIN_NUM != 0
+		and cg.`ACTIVITY_ID` = #{activityId} and cg.`GOODS_ID` = #{goodsId}
+		ORDER BY cg.`CREATED_TIME` ASC 
+		limit 0,5
+	</select>
+	
+	
+	<!-- 商品运费查询 -->
+	<select id="queryGoodsFreight" resultType="WxGoodsFreight" parameterType="Integer">
+		select 
+		cf.`ID` `id`,
+		cf.`PROVINCE` `province`,
+		cf.`MONEY` `money`,
+		cf.`EXCEED_MONEY` `exceedMoney` 
+		from t_evm_city_freight cf 
+		where cf.`IS_DEL` = 0 
+		and cf.`PROVINCE` = #{province} 
+	</select>
+	
+	<!-- 我的收藏 -->
+	<select id="queryCollect" resultType="Integer" parameterType="String">
+		select count(*) from t_evm_user_collect where `OPEN_ID` = #{openId} and `GOODS_ID` = #{goodsId}
+	</select>
+	<insert id="insertCollect" parameterType="String">
+		insert into t_evm_user_collect (`OPEN_ID`,`GOODS_ID`) values (#{openId},#{goodsId})
+	</insert>
+	<delete id="deleteCollect" parameterType="String">
+		delete from t_evm_user_collect where `OPEN_ID` = #{openId} and `GOODS_ID` = #{goodsId}
+	</delete>
+	<!-- 加入购物车 -->
+	<select id="queryShoppingcart" resultType="Integer" parameterType="String">
+		select count(*) from t_evm_user_shoppingcart where `OPEN_ID` = #{openId} and `GOODS_ID` = #{goodsId} and `SPEC_ID` = #{specId}
+	</select>
+	<insert id="insertShoppingcart" parameterType="WxGoods">
+		insert into t_evm_user_shoppingcart (`OPEN_ID`,`GOODS_ID`,`GOODS_NUM`,`SPEC_ID`) values (#{openId},#{id},#{goodsNum},#{specId})
+	</insert>
+	<update id="updateShoppingcart" parameterType="WxGoods">
+		update t_evm_user_shoppingcart set `GOODS_NUM` = `GOODS_NUM` + #{goodsNum} where `OPEN_ID` = #{openId} and `GOODS_ID` = #{id} and `SPEC_ID` = #{specId}
+	</update>
+	<update id="updateShoppingcartNum" parameterType="WxGoods">
+		update t_evm_user_shoppingcart set `GOODS_NUM` = #{goodsNum} where `OPEN_ID` = #{openId} and `GOODS_ID` = #{id} and `SPEC_ID` = #{specId}
+	</update>
+	<update id="deleteShoppingcart" parameterType="WxGoods">
+		delete from t_evm_user_shoppingcart where `OPEN_ID` = #{openId} and `GOODS_ID` = #{id} and `SPEC_ID` = #{specId}
+	</update>
+	<update id="deleteShoppingcartById" parameterType="Integer">
+		delete from t_evm_user_shoppingcart where `ID` = #{id}
+	</update>
+	
+	
+	
+	<!-- 根据分类查询商品 -->
+	<select id="queryGoodsClassifyList" resultType="WxGoods" parameterType="PagingDto">
+		SELECT
+		g.`ID` `id`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		(select gs.`GOODS_PRICE` from t_evm_goods_spec gs where gs.`IS_DEL` = 0 and gs.`GOODS_ID` = g.`ID` ORDER BY gs.GOODS_PRICE ASC LIMIT 1) `goodsPrice` 
+		from t_evm_goods g 
+		left join t_evm_goods_classify_dz gcdz on gcdz.`GOODS_ID` = g.`ID`
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+		WHERE g.`IS_DEL` = 0 and g.`STATUS` = 1 
+		and gcdz.`CLASSIFY_ID` in 
+		<foreach collection="items" item="id" separator="," open="(" close=")">
+            #{id}
+        </foreach>
+        group by g.`ID` 
+	</select>
+	
+	<!-- 查询满减金额 -->
+	<select id="queryActivityFullPre" resultType="WxActivityFull" parameterType="Map">
+		select 
+		a.`ID` `id`,
+		a.`IS_OVERLAY` `isOverlay`,
+		SUM(if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) * 
+			(SELECT `goodsNum` FROM (
+			<foreach collection="list" item="obj">
+	            SELECT #{obj.specId} `goodsId`,#{obj.goodsNum} `goodsNum` UNION
+	        </foreach>
+			SELECT 0 `goodsId`,0 `goodsNum`
+			) temp where temp.`goodsId` = gs.`ID`)
+		) `goodsPrice`,
+		af.`FULL_PRICE` `fullPrice`,
+		af.`PRE_PRICE` `prePrice`
+		from t_evm_activity a 
+		left join t_evm_activity_store aa on aa.`ACTIVITY_ID` = a.`ID` and aa.`IS_DEL` = 0
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID` and ag.`IS_DEL` = 0
+		left join t_evm_goods g on g.`ID` = ag.`GOODS_ID` 
+		left join t_evm_goods_spec gs on gs.`GOODS_ID` = g.`ID` 
+		left join t_evm_activity_full af on af.`ACTIVITY_ID` = a.`ID` 
+		where a.`IS_DEL` = 0 and a.`STATUS` = 1 and ag.`IS_DEL` = 0 
+		and aa.`STORE_ID` = #{storeId}
+		and ag.`STORE_ID` = #{storeId}
+		and a.`ACTIVITY_TYPE` = 5
+		and ag.`GOODS_ID` in 
+		<foreach collection="list" item="obj" separator="," open="(" close=")">
+            #{obj.goodsId}
+        </foreach>
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME` 
+		GROUP BY a.`ID`,af.`FULL_PRICE`,af.`PRE_PRICE` 
+		having SUM(if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) * 
+		(SELECT `goodsNum` FROM (
+		<foreach collection="list" item="obj">
+            SELECT #{obj.specId} `goodsId`,#{obj.goodsNum} `goodsNum` UNION
+        </foreach>
+		SELECT 0 `goodsId`,0 `goodsNum`
+		) temp where temp.`goodsId` = gs.`ID`)
+		) &gt;= af.`FULL_PRICE`
+		order by af.`FULL_PRICE` desc 
+	</select>
+	
+	<!-- 查询满赠赠品 -->
+	<select id="queryActivityFullGift" resultType="WxActivityFull" parameterType="Map">
+		select 
+		a.`ID` `id`,
+		SUM(if(IFNULL(gs1.`MARKET_PRICE`,0) &gt; 0,gs1.`MARKET_PRICE`,gs1.`GOODS_PRICE`) * 
+		(SELECT `goodsNum` FROM (
+		<foreach collection="list" item="obj">
+            SELECT #{obj.specId} `goodsId`,#{obj.goodsNum} `goodsNum` UNION
+        </foreach>
+		SELECT 0 `goodsId`,0 `goodsNum`
+		) temp where temp.`goodsId` = gs1.`ID`)
+		) `goodsPrice`,
+		af.`FULL_PRICE` `fullPrice`,
+		af.`GOODS_ID` `goodsId`,
+		af.`GOODS_NUM` `goodsNum`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImage`,
+		a.`IS_OVERLAY` `isOverlay`,
+		af.`AMOUNT` `amount`
+		from t_evm_activity a 
+		left join t_evm_activity_store aa on aa.`ACTIVITY_ID` = a.`ID` and aa.`IS_DEL` = 0
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID` and ag.`IS_DEL` = 0
+		left join t_evm_activity_fullgift af on af.`ACTIVITY_ID` = a.`ID`  and af.`STORE_ID` = aa.`STORE_ID`
+		left join t_evm_goods_spec gs on gs.`ID` = af.`GOODS_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		left join t_evm_goods g1 on g1.`ID` = ag.`GOODS_ID` 
+		left join t_evm_goods_spec gs1 on gs1.`GOODS_ID` = g1.`ID`
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		where a.`IS_DEL` = 0 and a.`STATUS` = 1 and ag.`IS_DEL` = 0 
+		and aa.`STORE_ID` = #{storeId}
+		and ag.`STORE_ID` = #{storeId}
+		and af.`AMOUNT` &gt; 0 
+		and a.`ACTIVITY_TYPE` = 6
+		and ag.`GOODS_ID` in 
+		<foreach collection="list" item="obj" separator="," open="(" close=")">
+            #{obj.goodsId}
+        </foreach>
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME` 
+		GROUP BY a.`ID`,af.`GOODS_ID`,af.`GOODS_NUM`,af.`FULL_PRICE`
+		having SUM(if(IFNULL(gs1.`MARKET_PRICE`,0) &gt; 0,gs1.`MARKET_PRICE`,gs1.`GOODS_PRICE`) * 
+		(SELECT `goodsNum` FROM (
+		<foreach collection="list" item="obj">
+            SELECT #{obj.specId} `goodsId`,#{obj.goodsNum} `goodsNum` UNION
+        </foreach>
+		SELECT 0 `goodsId`,0 `goodsNum`
+		) temp where temp.`goodsId` = gs1.`ID`)
+		) &gt;= af.`FULL_PRICE`
+		order by af.`FULL_PRICE` desc 
+	</select>
+	
+	
+	<!-- 查询打折折扣 -->
+	<select id="queryActivityFullDiscount" resultType="WxActivityFull" parameterType="Map">
+		select 
+		a.`ID` `id`,
+		ag.`GOODS_ID` `goodsId`,
+		a.`IS_OVERLAY` `isOverlay`,
+		g.`GOODS_NAME` `goodsName`,
+		ad.`FULL_PRICE` `fullPrice`,
+		ad.`PRE_PRICE` `prePrice`
+		from t_evm_activity a 
+		left join t_evm_activity_store aa on aa.`ACTIVITY_ID` = a.`ID` and aa.`IS_DEL` = 0
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID` and ag.`IS_DEL` = 0
+		left join t_evm_goods g on g.`ID` = ag.`GOODS_ID` 
+		left join t_evm_goods_spec gs on gs.`GOODS_ID` = g.`ID` 
+		left join t_evm_activity_discount ad on ad.`ACTIVITY_ID` = a.`ID` 
+		LEFT JOIN (
+			<foreach collection="list" item="obj">
+	            SELECT #{obj.specId} `goodsId`,#{obj.goodsNum} `goodsNum` UNION
+	        </foreach>
+			SELECT 0 `goodsId`,0 `goodsNum`
+		) temp on temp.`goodsId` = gs.`ID`
+		where a.`IS_DEL` = 0 and a.`STATUS` = 1 and ag.`IS_DEL` = 0 
+		and aa.`STORE_ID` = #{storeId}
+		and ag.`STORE_ID` = #{storeId}
+		and a.`ACTIVITY_TYPE` = 7
+		and ag.`GOODS_ID` in 
+		<foreach collection="list" item="obj" separator="," open="(" close=")">
+            #{obj.goodsId}
+        </foreach>
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME` 
+		GROUP BY a.`ID`,ag.`GOODS_ID`,ad.`FULL_PRICE`,ad.`PRE_PRICE` 
+		having SUM(IFNULL(temp.`goodsNum`,0)) >= ad.`FULL_PRICE`
+		order by ad.`FULL_PRICE` DESC  
+	</select>
+</mapper>

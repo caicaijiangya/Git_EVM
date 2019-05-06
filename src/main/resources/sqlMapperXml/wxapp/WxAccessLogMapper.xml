@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxAccessLogMapper">
+	<select id="queryUserNewOld" resultType="Integer" parameterType="String">
+		select count(*) from t_evm_order o where o.`OPEN_ID` = #{openId}
+	</select>
+	<insert id="insertGoodsAccessLog" parameterType="AccessLog">
+		insert into t_evm_goods_access_log (`OPEN_ID`,`GOODS_ID`,`SPEC_ID`) values (#{openId},#{goodsId},#{specId}) 
+	</insert>
+	<insert id="insertActivityAccessLog" parameterType="AccessLog">
+		insert into t_evm_activity_access_log (`OPEN_ID`,`ACTIVITY_ID`,`ACTIVITY_TYPE`,`TYPE`,`NEW_OLD`) values (#{openId},#{activityId},#{activityType},#{type},#{newOld}) 
+	</insert>
+</mapper>

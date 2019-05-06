@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.StaticFilesMapper">
+	<!-- 查询文件列表 -->
+	<select id="selectFileList" resultType="StaticFiles" parameterType="StaticFiles">
+        select 
+			sf.`ID` `id`,
+			sf.`RELATION_ID` `relationId`,
+			sf.`FILE_PATH` `filePath`,
+			sf.`FILE_TYPE` `fileType`,
+			sf.`BIG_TYPE` `bigType`,
+			sf.`SMALL_TYPE` `smallType` 
+		from t_evm_static_files sf 
+		where sf.`IS_DEL` = 0 
+		and sf.`RELATION_ID` = #{relationId}
+		<if test="fileType != null">
+			and sf.`FILE_TYPE` = #{fileType}
+		</if>
+		<if test="bigType != null">
+			and sf.`BIG_TYPE` = #{bigType} 
+		</if>
+		<if test="smallType != null">
+			and sf.`SMALL_TYPE` = #{smallType} 
+		</if>
+		order by sf.`SEQ` asc 
+    </select>   
+    <!-- 新增商品规格 -->
+    <insert id="insertFiles" parameterType="StaticFiles">
+    	insert into t_evm_static_files(`RELATION_ID`,`FILE_PATH`,`FILE_TYPE`,`BIG_TYPE`,`SMALL_TYPE`,`SEQ`) 
+    	values 
+    	(#{relationId},#{filePath},#{fileType},#{bigType},#{smallType},#{seq})
+    </insert>
+    <delete id="deleteFilesId" parameterType="Integer">
+    	delete from t_evm_static_files where `ID` = #{id}
+    </delete>
+    <delete id="deleteFilesRelation" parameterType="StaticFiles">
+    	delete from t_evm_static_files where `RELATION_ID` = #{relationId}
+    	and `FILE_TYPE` = #{fileType}
+    	and `BIG_TYPE` = #{bigType} 
+    	and `SMALL_TYPE` = #{smallType} 
+    </delete>
+
+<!-- 批量增加banner图片  -->
+   <insert id="saveImgList"  parameterType="java.util.List">
+ 		insert into t_evm_static_files(file_path,file_type,big_type,RELATION_ID,small_type,SEQ)
+	values
+	<foreach collection="list" item="item" index="index" separator=",">  
+    	(#{item.filePath},#{item.fileType},#{item.bigType},#{item.relationId},#{item.smallType},#{item.seq})  
+    </foreach>  
+   </insert>  
+<!-- 增加图片 -->
+<insert id="addFilePath" parameterType="StaticFiles">
+	insert into t_evm_static_files(file_path,file_type,big_type,RELATION_ID,small_type)
+	values(#{filePath},#{fileType},#{bigType},#{relationId},#{smallType})
+</insert> 
+<!-- 增加活动商品图片 -->
+<insert id="saveActivityGoodsImg" parameterType="java.util.List">
+	insert into t_evm_static_files(file_path,file_type,big_type,RELATION_ID,small_type)
+	values
+	<foreach collection="list" item="item" index="index" separator=",">  
+    	(#{item.filePath},#{item.fileType},#{item.bigType},#{item.relationId},#{item.smallType})  
+    </foreach> 
+</insert>  
+
+<!-- 批量增加积分商品图片  -->
+   <insert id="saveIntegrlGoodsImgList"  parameterType="java.util.List">
+ 		insert into t_evm_static_files (file_path,file_type,big_type,RELATION_ID,small_type)
+		VALUES  
+    	<foreach collection="list" item="item" index="index" separator=",">  
+            (#{item.filePath},#{item.fileType},#{item.bigType},#{item.relationId},#{item.smallType})  
+        </foreach>  
+   </insert>      
+</mapper>

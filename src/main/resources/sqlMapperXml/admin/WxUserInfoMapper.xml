@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.WxUserInfoMapper">
+
+<!-- 查询小程序里用户授权后的信息 -->
+	<select id="queryUserInfoList" parameterType="WxUserInfo" resultType="WxUserInfo">
+		SELECT 
+			u.id,
+			s.store_name storeName,
+			u.open_id openId,
+			u.mobile_no mobileNo,
+			u.user_name userName,
+			u.nick_name nickName,
+			u.head_img_url headImgUrl,
+			u.`CODE` `code`,
+			u.money,u.INTEGRAL,u.CON_INTEGRAL,u.IS_INTEGRAL,
+			CONCAT(u.country,' ',u.province,' ',u.city) country,
+			u.sex,
+			u.USER_TYPE userType,
+			u.union_id unionId,
+			u.is_auth isAuth,
+			u.CREATED_TIME createdTime,
+			u.IS_DEL isDel,
+			u.note
+		FROM
+			t_evm_wx_user u
+		LEFT JOIN
+			t_evm_store s
+		ON
+			s.id = u.store_id		
+		WHERE
+			u.is_del = 0
+			<if test="nickName != null and nickName != ''">
+				and (
+					u.nick_name like CONCAT('%',#{nickName},'%')  
+					or u.mobile_no like CONCAT('%',#{nickName},'%')  
+					or u.user_name like CONCAT('%',#{nickName},'%')
+				)
+			</if>
+			<if test="startTime !=null and startTime != ''">
+				and u.`CREATED_TIME` &gt;= #{startTime}
+			</if>
+			<if test="endTime !=null and endTime != ''">
+				and u.`CREATED_TIME` &lt; #{endTime}
+			</if>
+			<if test="userType != null">
+				and u.user_type = #{userType}
+			</if>
+			order by u.CREATED_TIME desc
+	</select>
+	
+	
+	<!-- 下载商品  -->
+	<select id="downLoadUserInfo" resultType="java.util.Map" parameterType="WxUserInfo">
+		SELECT 
+			u.id,
+			s.store_name storeName,
+			u.open_id openId,
+			u.mobile_no mobileNo,
+			u.user_name userName,
+			u.nick_name nickName,
+			u.head_img_url headImgUrl,
+			u.`CODE` `code`,
+			u.money,
+			u.INTEGRAL `integral`,
+			CONCAT(u.country,' ',u.province,' ',u.city) country,
+			CASE u.sex 
+				WHEN 0 THEN '保密'
+			  	WHEN 1 THEN '男' 
+			  	WHEN 2 THEN '女' 
+			   ELSE '无' END `sex`,
+			CASE u.USER_TYPE
+				WHEN 1 THEN '店主'
+			  	WHEN 2 THEN '店长' 
+			  	WHEN 3 THEN '店员' 
+			   WHEN 4 THEN '消费者'  END `userType`,
+			u.CREATED_TIME createdTime,
+			u.IS_DEL isDel,
+			u.note
+		FROM
+			t_evm_wx_user u
+		LEFT JOIN
+			t_evm_store s
+		ON
+			s.id = u.store_id		
+		WHERE
+			u.is_del = 0
+			<if test="nickName != null and nickName != ''">
+				and (
+					u.nick_name like CONCAT('%',#{nickName},'%')  
+					or u.mobile_no like CONCAT('%',#{nickName},'%')  
+					or u.user_name like CONCAT('%',#{nickName},'%')
+				)
+			</if>
+			<if test="startTime !=null and startTime != ''">
+				and u.`CREATED_TIME` &gt;= #{startTime}
+			</if>
+			<if test="endTime !=null and endTime != ''">
+				and u.`CREATED_TIME` &lt; #{endTime}
+			</if>
+			<if test="userType != null">
+				and u.user_type = #{userType}
+			</if>
+			order by u.CREATED_TIME desc
+	</select> 
+
+<!-- 查询店主未授权的权限模块 -->
+	<select id="queryModelList" parameterType="WxUserInfo" resultType="IndexModel">
+		SELECT
+			m.id,
+			m.model_name modelName
+		FROM
+			t_evm_index_model m
+		WHERE
+			m.is_del = 0
+			AND m.id NOT IN (
+				SELECT MODEL_ID modelId FROM t_evm_model_user
+					WHERE OPEN_ID = #{openId}
+                )
+			<if test="modelName != null and modelName != ''">
+				and (
+					m.model_name like CONCAT('%',#{modelName},'%')  
+				)
+			</if>
+			order by m.CREATED_TIME desc
+	</select>
+<!-- 批量录赋予用户权限 -->
+    <insert id="addModelUser" parameterType="java.util.List">
+        insert into t_evm_model_user
+        (
+        MODEL_ID,
+        OPEN_ID
+		)
+		VALUES  
+    	<foreach collection="list" item="ims" index="index" separator=",">  
+            (
+            #{ims.modelId}, 
+            #{ims.openId}
+            )     
+        </foreach>
+     </insert>	
+<!-- 查询店主已授权的权限模块 -->
+	<select id="queryModelUserList" parameterType="WxUserInfo" resultType="IndexModel">
+		SELECT
+			mu.id,
+			m.model_name modelName
+		FROM
+			t_evm_model_user mu
+		LEFT JOIN t_evm_index_model m ON m.id = mu.MODEL_ID
+		WHERE
+			m.is_del = 0
+			AND mu.OPEN_ID = #{openId}
+			<if test="modelName != null and modelName != ''">
+				and (
+					m.model_name like CONCAT('%',#{modelName},'%')  
+				)
+			</if>
+			order by m.CREATED_TIME desc
+	</select> 
+<!-- 批量删除操作权限 -->
+	<delete id="deleteByIds" parameterType="java.util.List">
+		DELETE
+		FROM
+			t_evm_model_user
+		WHERE
+			id in
+			<foreach collection="list" close=")" open="(" separator="," item="l">
+		 	   #{l}
+		 	</foreach>
+	</delete>	 
+	<!-- 黑名单 -->
+	<select id="queryUserBlacklistDataGrid" resultType="WxUserInfo" parameterType="WxUserInfo">
+		SELECT
+		ub.`ID` `id`,
+		s.store_name storeName,
+		u.`CODE` `code`,
+		ub.`OPEN_ID` `openId`,
+		u.`NICK_NAME` `nickName`,
+		u.`USER_NAME` `userName`,
+		u.`MOBILE_NO` `mobileNo`,
+		u.`HEAD_IMG_URL` `headImgUrl`,
+		ub.`CREATED_TIME` createdTime 
+		from t_evm_wx_user_blacklist ub
+		LEFT JOIN t_evm_wx_user u on u.`OPEN_ID` = ub.`OPEN_ID` 
+		LEFT JOIN t_evm_store s ON s.id = u.store_id	
+		WHERE ub.`IS_DEL` = 0 
+		<if test="nickName != null and nickName != ''">
+			and (
+				u.nick_name like CONCAT('%',#{nickName},'%')  
+				or u.mobile_no like CONCAT('%',#{nickName},'%')  
+				or u.user_name like CONCAT('%',#{nickName},'%')
+			)
+		</if>
+		order by ub.`CREATED_TIME` desc
+	</select>
+	<select id="queryUserBlacklistById" resultType="Integer" parameterType="String">
+		select count(*) from t_evm_wx_user_blacklist where `OPEN_ID` = #{openId} 
+	</select>   
+	<delete id="deleteUserBlacklist" parameterType="String">
+		delete from t_evm_wx_user_blacklist  where `OPEN_ID` = #{openId}
+	</delete>	
+	<insert id="insertUserBlacklist" parameterType="WxUserInfo">
+		insert into t_evm_wx_user_blacklist (`OPEN_ID`) values (#{openId})
+	</insert>
+</mapper>

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxErpMapper">
+	<resultMap type="WxErpOrder" id="order">
+		<id column="id" property="id"/>
+		<result column="platformCode" property="platformCode"/>
+		<result column="shopCode" property="shopCode"/>
+		<result column="storeId" property="storeId"/>
+		<result column="takeStyle" property="takeStyle"/>
+		<result column="dealDatetime" property="dealDatetime"/>
+		<result column="receiverName" property="receiverName"/>
+		<result column="receiverMobile" property="receiverMobile"/>
+		<result column="receiverAddress" property="receiverAddress"/>
+		<result column="receiverDistrict" property="receiverDistrict"/>
+		<collection property="details"  column="id" ofType="WxErpOrderDetail" javaType="ArrayList" select="queryErpOrderDetail"></collection>
+	</resultMap>
+	
+	<resultMap type="WxErpOrder" id="orderRefund">
+		<id column="id" property="id"/>
+		<result column="platformCode" property="platformCode"/>
+		<result column="shopCode" property="shopCode"/>
+		<result column="dealDatetime" property="dealDatetime"/>
+		<result column="receiverName" property="receiverName"/>
+		<result column="receiverMobile" property="receiverMobile"/>
+		<result column="receiverAddress" property="receiverAddress"/>
+		<result column="receiverDistrict" property="receiverDistrict"/>
+		<collection property="details"  column="id" ofType="WxErpOrderDetail" javaType="ArrayList" select="queryErpOrderRefundDetail"></collection>
+	</resultMap>
+	<!-- 查询用户信息 -->
+    <select id="queryUserById" resultType="UserBean" parameterType="java.lang.String">
+        select
+	        t.`ID` AS `id`, 
+	        if(ifnull(t.`NICK_NAME`,'') = '','游客',t.`NICK_NAME`) `code`,
+	        t.`STORE_ID` AS `storeId`,
+	        t.`OPEN_ID` AS `openId`, 
+	        t.`MOBILE_NO` AS `mobileNo`,
+	        t.`USER_NAME` AS `userName`,
+	        t.`NICK_NAME` AS `nickName`,
+	        t.`HEAD_IMG_URL` AS `headImgUrl`,
+	        t.`USER_TYPE` AS `userType`,
+	        t.`INTEGRAL` AS `integral`,
+	        t.`SEX` AS `SEX`
+        from 
+        	t_evm_wx_user t 
+        where 
+        	t.`OPEN_ID` = #{openId}
+    </select>
+	<!-- 查询我的订单详情 -->
+	<select id="queryErpOrderById" resultMap="order" parameterType="Integer">
+		select 
+		o.`ID` `id`,
+		o.`ORDER_NO` `platformCode`,
+		s.`STORE_NO` `shopCode`,
+		ifnull(o.`STORE_ID`,0) `storeId`,
+		o.`TAKE_STYLE` `takeStyle`,
+		DATE_FORMAT(o.`CREATED_TIME`, '%Y-%m-%d %H:%i:%s') `dealDatetime`,
+		DATE_FORMAT(ot.`LAST_MODIFIED_TIME`, '%Y-%m-%d %H:%i:%s') `payDatetime`,
+		ot.`BALANCES` `payment`,
+		ot.`TRANS_NO` `payCode`,
+		u.`NICK_NAME` `vipCode`,
+		oa.`NAME` `receiverName`,
+		oa.`MOBILE_NO` `receiverMobile`,
+		oa.`DETAIL_ADDRESS` `receiverAddress`,
+		a0.`NAME` `receiverProvince`,
+		a1.`NAME` `receiverCity`,
+		a2.`NAME` `receiverDistrict`
+		from t_evm_order o
+		left join t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID` 
+		left join t_evm_store s on s.`ID` = o.`STORE_ID` 
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+		left join t_evm_order_address oa on oa.`ORDER_ID` = o.`ID` 
+		left join t_evm_area a0 on a0.`ID` = oa.`PROVINCE`
+		left join t_evm_area a1 on a1.`ID` = oa.`CITY`
+		left join t_evm_area a2 on a2.`ID` = oa.`AREA`
+		where o.`IS_DEL` = 0
+		and o.`ID` = #{id} 
+	</select>
+	<select id="queryErpOrderDetail" resultType="WxErpOrderDetail" parameterType="Integer">
+		select 
+		gs.`GOODS_CODE` `itemCode`,
+		od.`GOODS_SPEC` `skuCode`,
+		od.`GOODS_PRICE` `price`,
+		od.`GOODS_NUMS` `qty`
+		from t_evm_order_detail od 
+		left join t_evm_goods_spec gs on gs.`ID` = od.`SPEC_ID` 
+		where od.`ORDER_ID` = #{id}
+	</select>
+	
+	
+	
+	<!-- 查询我的订单退款详情 -->
+	<select id="queryErpOrderRefundById" resultMap="orderRefund" parameterType="Integer">
+		select 
+		oo.`ID` `id`,
+		o.`ORDER_NO` `platformCode`,
+		s.`STORE_NO` `shopCode`,
+		DATE_FORMAT(o.`CREATED_TIME`, '%Y-%m-%d %H:%i:%s') `dealDatetime`,
+		DATE_FORMAT(ot.`LAST_MODIFIED_TIME`, '%Y-%m-%d %H:%i:%s') `payDatetime`,
+		oo.`BALANCES` `payment`,
+		ot.`TRANS_NO` `payCode`,
+		u.`CODE` `vipCode`,
+		ora.`NAME` `receiverName`,
+		ora.`MOBILE_NO` `receiverMobile`,
+		ora.`DETAIL_ADDRESS` `receiverAddress`,
+		a0.`NAME` `receiverProvince`,
+		a1.`NAME` `receiverCity`,
+		a2.`NAME` `receiverDistrict`
+		from t_evm_order_refund oo
+		left join t_evm_order o on o.`ID` = oo.`ORDER_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = o.`OPEN_ID` 
+		left join t_evm_store s on s.`ID` = o.`STORE_ID` 
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+		left join t_evm_order_refund_address ora on ora.`REFUND_ID` = oo.`ID` 
+		left join t_evm_area a0 on a0.`ID` = ora.`PROVINCE`
+		left join t_evm_area a1 on a1.`ID` = ora.`CITY`
+		left join t_evm_area a2 on a2.`ID` = ora.`AREA`
+		where o.`IS_DEL` = 0
+		and oo.`ID` = #{id} 
+	</select>
+	<select id="queryErpOrderRefundDetail" resultType="WxErpOrderDetail" parameterType="Integer">
+		select 
+		gs.`GOODS_CODE` `itemCode`,
+		gs.`GOODS_CODE` `skuCode`,
+		gs.`GOODS_PRICE` `price`,
+		ord.`GOODS_NUMS` `qty`
+		from t_evm_order_detail ord 
+		left join t_evm_goods_spec gs on gs.`ID` = ord.`SPEC_ID` 
+		where ord.`REFUND_ID` = #{id}
+	</select>
+	
+	<update id="updateErpOrder" parameterType="WxErpOrder">
+		update t_evm_order set `ERP_ORDER_ID` = #{erpId},`ERP_ORDER_CODE` = #{erpCode} where `ID` = #{id}
+	</update>
+	
+	<update id="updateErpVip" parameterType="WxErpOrder">
+		update t_evm_wx_user set `ERP_VIP_ID` = #{erpId},`ERP_VIP_CODE` = #{erpCode} where `ID` = #{id}
+	</update>
+	
+	<update id="updateOrderAddress" parameterType="WxErpOrder">
+		update t_evm_order_address set `EXPRESS_NO` = #{erpCode},`NOTE` = #{expressCode} where `ORDER_ID` = (select o.`ID` from t_evm_order o where o.`ORDER_NO` = #{erpId})
+	</update>
+	
+	<update id="updateOrderStatus" parameterType="String">
+		update t_evm_order set `STATUS` = 2 where `ORDER_NO` = #{orderNo}
+	</update>
+</mapper>

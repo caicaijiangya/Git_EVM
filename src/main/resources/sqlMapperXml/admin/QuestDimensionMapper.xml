@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.QuestDimensionMapper">
+	<select id="selectDataGrid" parameterType="QuestDimension" resultType="QuestDimension">
+		select 
+		qd.`ID` `id`,
+		qd.`CLASSIFY_ID` `classifyId`,
+		gc.`NAME` `classifyName`,
+		qd.`KEY` `key`,
+		qd.`NAME` `name`,
+		date_format(qd.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `createdTime` 
+		from t_evm_quest_dimension qd
+		left join t_evm_goods_classify gc on gc.`ID` = qd.`CLASSIFY_ID` 
+		where qd.is_del = 0 
+		<if test="name != null and name != ''">
+			and qd.`NAME` like CONCAT('%',#{name},'%')
+		</if>
+		order by qd.`CREATED_TIME` desc
+	</select>
+<!-- 查询问题列表 -->
+	<select id="selectDimensionList" parameterType="QuestDimension" resultType="QuestDimension">
+		select d.id,d.name from t_evm_quest_dimension d where d.is_del=0
+	</select>
+</mapper>

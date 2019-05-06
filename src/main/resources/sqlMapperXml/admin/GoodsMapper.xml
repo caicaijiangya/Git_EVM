@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.GoodsMapper">
+	<!-- 查询商品列表 -->
+	<select id="selectDataGrid" resultType="Goods" parameterType="Goods">
+        select 
+		g.`ID` `id`,
+		u.`NAME` `userName`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImage`,
+		g.`GOODS_DESC` `goodsDesc`,
+		g.`GOODS_SALES` `goodsSales`,
+		g.`GOODS_TOTAL_SALES` `goodsTotalSales`,
+		g.`STATUS` `status`,
+		g.`BRAND_ID` `brandId`,
+		gb.`NAME` `brandName`,
+		g.`SEQ` `seq`,
+		g.`IS_SHOW` `isShow`,
+		group_concat(gc.`NAME`) `classifyName`,
+		g.`QR_CODE` `qrCode`,
+		g.`CREATED_TIME` `createdTime`,
+		g.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		g.`NOTE` `note`
+		from t_evm_goods g 
+		left join t_evm_goods_spec gs on gs.`GOODS_ID` = g.`ID` 
+		left join t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		left join t_evm_goods_classify_dz gcdz on gcdz.`GOODS_ID` = g.`ID`
+		left join t_evm_goods_classify gc on gc.`ID` = gcdz.`CLASSIFY_ID`
+		left join t_evm_user u on u.`ID` = g.`USER_ID` 
+		left join t_evm_static_files sf on sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0
+		where g.`IS_DEL` = 0 
+		<if test="goodsName != null">
+			and (
+				g.`GOODS_NAME` like CONCAT(CONCAT('%',#{goodsName}),'%') or 
+				gs.`GOODS_CODE` like CONCAT(CONCAT('%',#{goodsName}),'%')
+			)
+		</if>
+		<if test="brandId != null">
+			and g.`BRAND_ID` = #{brandId}
+		</if>
+		<if test="classifyId != null">
+			and gcdz.`CLASSIFY_ID` = #{classifyId}
+		</if>
+		<if test="status != null">
+			and g.`STATUS` = #{status}
+		</if>
+		group by g.`ID` 
+		order by g.`CREATED_TIME` desc
+    </select>   
+    
+    
+    <!-- 查询商品规格列表 -->
+	<select id="selectSpecDataGrid" resultType="Goods" parameterType="Goods">
+        select 
+		gs.`ID` `id`,
+		gs.`GOODS_CODE` `goodsCode`,
+		g.`GOODS_NAME` `goodsName`,
+		gs.`SPEC_NAME` `specName`,
+		sf.`FILE_PATH` `goodsImage`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		gs.`MARKET_PRICE` `marketPrice`,
+		gs.`GOODS_AMOUNT` `goodsAmount`,
+		IFNULL(gs.`GOODS_AMOUNT`,0) + IFNULL(sg1.`GOODS_AMOUNT`,0) `goodsRemAmount`,
+		gs.`GOODS_TOTAL_AMOUNT` `goodsTotalAmount`,
+		gs.`SEQ` `seq`,
+		gs.`CREATED_TIME` `createdTime`,
+		gs.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		gs.`NOTE` `note`
+		from t_evm_goods_spec gs 
+		left join (
+			select sum(IFNULL(sg.`GOODS_AMOUNT`,0)) `GOODS_AMOUNT`,sg.`SPEC_ID` from t_evm_store_goods sg where sg.`IS_DEL` = 0 group by sg.`SPEC_ID`
+		) sg1 on sg1.`SPEC_ID` = gs.`ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		left join t_evm_static_files sf on sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		where gs.`IS_DEL` = 0 and gs.`GOODS_ID` = #{id} 
+		<if test="goodsName != null">
+			and (
+				gs.`SPEC_NAME` like CONCAT(CONCAT('%',#{goodsName}),'%') OR
+				gs.`GOODS_CODE` like CONCAT(CONCAT('%',#{goodsName}),'%') 
+			)
+		</if>
+		order by gs.`SEQ` asc
+    </select>   
+    
+    <!-- 查询商品详情 -->
+	<select id="selectGoodsObj" resultType="Goods" parameterType="Integer">
+        select 
+		g.`ID` `id`,
+		u.`NAME` `userName`,
+		g.`GOODS_NAME` `goodsName`,
+		g.`GOODS_DESC` `goodsDesc`,
+		g.`GOODS_SALES` `goodsSales`,
+		g.`GOODS_TOTAL_SALES` `goodsTotalSales`,
+		g.`STATUS` `status`,
+		g.`BRAND_ID` `brandId`,
+		g.`SEQ` `seq`,
+		g.`IS_SHOW` `isShow`,
+		g.`CREATED_TIME` `createdTime`,
+		g.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		g.`NOTE` `note`,
+		(SELECT GROUP_CONCAT(gcdz.`CLASSIFY_ID` SEPARATOR ',') from t_evm_goods_classify_dz gcdz where gcdz.`GOODS_ID` = g.`ID`) `classifys`,
+		(SELECT GROUP_CONCAT(sf.`FILE_PATH` SEPARATOR ',') from t_evm_static_files sf where sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0) `goodsImage`,
+		(SELECT GROUP_CONCAT(sf.`FILE_PATH` SEPARATOR ',') from t_evm_static_files sf where sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 1) `advertImg`,
+		(SELECT GROUP_CONCAT(sf.`FILE_PATH` SEPARATOR ',') from t_evm_static_files sf where sf.`RELATION_ID` = g.`ID` and sf.`FILE_TYPE` = 1 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 0) `goodsVideo`,
+		(SELECT GROUP_CONCAT(gl.`NAME` SEPARATOR ',') from t_evm_goods_label gl where gl.`GOODS_ID` = g.`ID` order by gl.`SEQ` asc) `labels`
+		from t_evm_goods g 
+		left join t_evm_user u on u.`ID` = g.`USER_ID` 
+		where g.`ID` = #{id}
+    </select>   
+    
+    <!-- 查询商品规格详情 -->
+	<select id="selectGoodsSpecObj" resultType="Goods" parameterType="Integer">
+        select 
+		gs.`ID` `id`,
+		gs.`GOODS_CODE` `goodsCode`,
+		gs.`SPEC_NAME` `specName`,
+		sf.`FILE_PATH` `goodsImage`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		gs.`MARKET_PRICE` `marketPrice`,
+		gs.`GOODS_AMOUNT` `goodsAmount`,
+		gs.`GOODS_REM_AMOUNT` `goodsRemAmount`,
+		gs.`GOODS_TOTAL_AMOUNT` `goodsTotalAmount`,
+		gs.`SEQ` `seq`,
+		gs.`CREATED_TIME` `createdTime`,
+		gs.`LAST_MODIFIED_TIME` `lastModifiedTime`,
+		gs.`NOTE` `note`
+		from t_evm_goods_spec gs 
+		left join t_evm_static_files sf on sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		where gs.`ID` = #{id} 
+    </select>   
+    
+    
+    <!-- 下载商品  -->
+	<select id="downLoadGoods" resultType="java.util.Map" parameterType="Goods">
+		select 
+		gb.`NAME` `brandName`,
+		gs.`GOODS_CODE` `goodsCode`,
+		g.`GOODS_NAME` `goodsName`,
+		gs.`SPEC_NAME` `specName`,
+		(select group_concat(gc.`NAME`) from t_evm_goods_classify_dz gcdz left join t_evm_goods_classify gc on gc.`ID` = gcdz.`CLASSIFY_ID` where gcdz.`IS_DEL` = 0 and gcdz.`GOODS_ID` = g.`ID` ORDER BY gc.`SEQ` ASC) `classifyName`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		gs.`GOODS_AMOUNT` `goodsAmount`,
+		gs.`GOODS_REM_AMOUNT` `goodsRemAmount`,
+		g.`SEQ` `seq`,
+		if(g.`STATUS` = 0,'已下架','已上架') `status`,
+		if(g.`STATUS` = 1,DATE_FORMAT(g.`LAST_MODIFIED_TIME`,'%Y-%m-%d'),'') `createTime`,
+		if(g.`STATUS` = 0,DATE_FORMAT(g.`LAST_MODIFIED_TIME`,'%Y-%m-%d'),'') `lastModifiedTime` 
+		from t_evm_goods g 
+		left join t_evm_goods_spec gs on gs.`GOODS_ID` = g.`ID`
+		left join t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		where g.`IS_DEL` = 0 
+		<if test="goodsName != null">
+			and (
+				g.`GOODS_NAME` like CONCAT(CONCAT('%',#{goodsName}),'%') OR
+				gs.`GOODS_CODE` like CONCAT(CONCAT('%',#{goodsName}),'%') 
+			)
+		</if>
+		<if test="brandId != null">
+			and g.`BRAND_ID` = #{brandId}
+		</if>
+		<if test="status != null">
+			and g.`STATUS` = #{status}
+		</if>
+		order by g.`CREATED_TIME` desc
+	</select> 
+    
+    <!-- 查询商品分类列表 -->
+	<select id="selectClassifyList" resultType="GoodsClassify">
+        select 
+		gc.`ID` `id`,
+		gc.`NAME` `name`,
+		gc.`PID` `pid` 
+		from t_evm_goods_classify gc 
+		where gc.`IS_DEL` = 0 
+		order by gc.`SEQ` asc
+    </select>   
+    <!-- 查询商品分类列表 -->
+	<select id="selectBrandList" resultType="GoodsClassify">
+        select 
+		gc.`ID` `id`,
+		gc.`NAME` `name`
+		from t_evm_goods_brand gc 
+		where gc.`IS_DEL` = 0 
+		order by gc.`SEQ` asc
+    </select> 
+    
+    <update id="updateAmount" parameterType="Integer">
+    	update t_evm_goods_spec set 
+    	GOODS_AMOUNT = GOODS_AMOUNT - #{amount}
+    	where `ID` = #{id}
+    </update>
+    <update id="updateGoods" parameterType="Goods">
+    	update t_evm_goods set 
+    	GOODS_NAME = #{goodsName},
+    	GOODS_DESC = #{goodsDesc},
+    	BRAND_ID = #{brandId},
+    	SEQ = #{seq},
+    	IS_SHOW = #{isShow},
+    	LAST_MODIFIED_TIME = now()
+    	where `ID` = #{id}
+    </update>
+    <update id="updateRemAmount" parameterType="Integer">
+    	update t_evm_goods_spec set 
+    	GOODS_REM_AMOUNT = GOODS_REM_AMOUNT + #{amount},
+    	LAST_MODIFIED_TIME = now()
+    	where `ID` = #{id}
+    </update>
+    <update id="updateGoodsQrCode" parameterType="Goods">
+    	update t_evm_goods set 
+    	QR_CODE = #{qrCode},
+    	LAST_MODIFIED_TIME = now()
+    	where `ID` = #{id}
+    </update>
+    <update id="deleteGoods" parameterType="Goods">
+    	update t_evm_goods set 
+    	<if test="isDel != null">
+    		`IS_DEL` = #{isDel},
+    	</if>
+    	<if test="status != null">
+    		`STATUS` = #{status},
+    	</if>
+    	LAST_MODIFIED_TIME = now()
+    	where `ID` = #{id}
+    </update>
+    <insert id="insertGoods" parameterType="Goods" useGeneratedKeys="true" keyProperty="id">
+    	insert into t_evm_goods(`USER_ID`,`GOODS_NAME`,`GOODS_DESC`,`BRAND_ID`,`STATUS`,`SEQ`,`IS_SHOW`)
+    	values 
+    	(#{userId},#{goodsName},#{goodsDesc},#{brandId},#{status},#{seq},#{isShow})
+    </insert>
+    <!-- 商品规格持久化 -->
+    <insert id="insertGoodsSpec" parameterType="Goods" useGeneratedKeys="true" keyProperty="id">
+    	insert into t_evm_goods_spec(`GOODS_ID`,`GOODS_CODE`,`SPEC_NAME`,`GOODS_PRICE`,`MARKET_PRICE`,`GOODS_AMOUNT`,`GOODS_REM_AMOUNT`,`GOODS_TOTAL_AMOUNT`,`SEQ`)
+    	values 
+    	(#{id},#{goodsCode},#{specName},#{goodsPrice},#{marketPrice},#{goodsAmount},#{goodsRemAmount},#{goodsTotalAmount},#{seq})
+    </insert>
+    <update id="updateGoodsSpec" parameterType="Goods">
+    	update t_evm_goods_spec set 
+    	<if test="specName != null">`SPEC_NAME` = #{specName},</if>
+    	<if test="goodsCode != null">`GOODS_CODE` = #{goodsCode},</if>
+    	<if test="goodsPrice != null">`GOODS_PRICE` = #{goodsPrice},</if>
+    	<if test="marketPrice != null">`MARKET_PRICE` = #{marketPrice},</if>
+    	<if test="seq != null">`SEQ` = #{seq},</if>
+    	<if test="isDel != null">`IS_DEL` = #{isDel},</if>
+    	<if test="addAmount != null">
+    		`GOODS_AMOUNT` = `GOODS_AMOUNT` + #{addAmount},
+    		`GOODS_REM_AMOUNT` = `GOODS_REM_AMOUNT` + #{addAmount},
+    		`GOODS_TOTAL_AMOUNT` = `GOODS_TOTAL_AMOUNT` + #{addAmount},
+    	</if>
+    	`LAST_MODIFIED_TIME` = now() 
+    	where `ID` = #{id}
+    </update>
+    <!-- 新增商品标签 -->
+    <insert id="insertGoodsLabel" parameterType="GoodsClassify" useGeneratedKeys="true" keyProperty="id">
+    	insert into t_evm_goods_label(`GOODS_ID`,`NAME`,`SEQ`) values (#{goodsId},#{name},#{seq})
+    </insert>
+    <delete id="deleteGoodsLabel" parameterType="Integer">
+    	delete from t_evm_goods_label where `GOODS_ID` = #{goodsId}
+    </delete>
+    <!-- 新增商品分类 -->
+    <insert id="insertGoodsClassifyDz" parameterType="Integer">
+    	insert into t_evm_goods_classify_dz(`GOODS_ID`,`CLASSIFY_ID`) values (#{goodsId},#{classifyId})
+    </insert>
+    <delete id="deleteGoodsClassifyDz" parameterType="Integer">
+    	delete from t_evm_goods_classify_dz where `GOODS_ID` = #{goodsId} 
+    </delete>
+    
+<!-- 查询所有商品pjf -->
+	<select id="queryAllGoods" resultType="Goods" parameterType="Goods">
+        SELECT
+            g.id,
+            g.goods_name goodsName
+        FROM
+            t_evm_goods g
+        WHERE
+            g.is_del = 0
+        order by g.ID desc    
+	</select>    
+	
+	<select id="selectGoodsInfo" parameterType="Goods" resultType="Goods">
+ 		SELECT
+			g.id,
+			g.goods_name goodsName,
+			gs.GOODS_CODE sku,
+			gs.id specId,
+			gs.spec_name specName
+		FROM
+			t_evm_goods g
+		LEFT JOIN t_evm_goods_spec gs ON gs.goods_id=g.id
+		WHERE
+				g.is_del = 0
+			AND gs.IS_DEL=0
+			AND g.`STATUS`=1
+ 	</select>   
+</mapper>

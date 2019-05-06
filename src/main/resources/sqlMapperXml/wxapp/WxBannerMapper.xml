@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxBannerMapper">
+	
+	<!-- banner列表 -->
+	<select id="queryBannerList" resultType="WxBanner" parameterType="Integer">
+		SELECT
+		b.`ID` `id`,
+		b.`TITLE` `title`,
+		b.`URL` `url`,
+		b.`WIDTH` `width`,
+		b.`HEIGHT` `height`,
+		sf.`FILE_PATH` `images`
+		from t_evm_banner b 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = b.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 5 and sf.`SMALL_TYPE` = 0
+		WHERE b.`IS_DEL` = 0 and b.`TYPE` = #{type}
+		order by sf.`SEQ` asc 
+	</select>
+	
+	
+	
+	<!-- 静态资源文件 -->
+	<select id="queryFiles" resultType="WxStaticFile" parameterType="Integer">
+		select sf.`ID` `id`,sf.`FILE_PATH` `filePath` 
+		from t_evm_static_files sf 
+		where sf.`IS_DEL` = 0 
+		and sf.`RELATION_ID` = #{id} 
+		and sf.`FILE_TYPE` = #{fileType} 
+		and sf.`BIG_TYPE` = #{bigType}  
+		and sf.`SMALL_TYPE` = #{smallType} 
+	</select>	
+</mapper>

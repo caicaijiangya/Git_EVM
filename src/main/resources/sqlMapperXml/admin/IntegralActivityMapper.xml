@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.IntegralActivityMapper">
+	<!-- 查询所有积分规则 -->
+	<select id="selectDataGrid" resultType="IntegralActivity" parameterType="IntegralActivity">
+        SELECT
+            ia.`ID` `id`,
+            ia.`TITLE` `title`,
+            ia.`TYPE` `type`,
+            DATE_FORMAT(ia.`START_TIME`, '%Y-%m-%d %H:%i:%s') `startTime`,
+            DATE_FORMAT(ia.`END_TIME`, '%Y-%m-%d %H:%i:%s') `endTime`,
+            ia.`MULTIPLE` `multiple`,
+            ia.`INTEGRAL` `integral`,
+            DATE_FORMAT(ia.`CREATED_TIME`, '%Y-%m-%d %H:%i:%s') `createdTime`
+        FROM  t_evm_integral_activity ia  	    
+        WHERE ia.`IS_DEL` = 0 
+            <if test="title !=null and title!=''">
+            	and ia.`TITLE` like CONCAT('%',#{title},'%')
+            </if>
+			<if test="type !=null ">
+				and ia.`TYPE` = #{type}
+			</if>
+        order by ia.`CREATED_TIME` desc    
+    </select>
+	<!-- 查询积分规则详情 -->
+	<select id="selectIntegralActivityById" resultType="IntegralActivity" parameterType="Integer">
+        SELECT
+            ia.`ID` `id`,
+            ia.`TITLE` `title`,
+            ia.`TYPE` `type`,
+            DATE_FORMAT(ia.`START_TIME`, '%Y-%m-%d %H:%i:%s') `startTime`,
+            DATE_FORMAT(ia.`END_TIME`, '%Y-%m-%d %H:%i:%s') `endTime`,
+            ia.`MULTIPLE` `multiple`,
+            ia.`INTEGRAL` `integral`,
+            (select 
+				GROUP_CONCAT(ias.`STORE_ID`) 
+				from t_evm_integral_activity_store ias
+				where ias.`IS_DEL` = 0 and ias.`INTEGRAL_ACTIVITY_ID` = ia.`ID`
+			) `activityStoreIds` 
+        FROM  t_evm_integral_activity ia  	    
+        WHERE ia.`ID` = #{id}  
+    </select>
+    <insert id="insertIntegralActivityStore" parameterType="IntegralActivityStore">
+    	insert into t_evm_integral_activity_store (`INTEGRAL_ACTIVITY_ID`,`STORE_ID`) values (#{integralActivityId},#{storeId})
+    </insert>
+    <delete id="deleteIntegralActivityStore" parameterType="Integer">
+    	delete from t_evm_integral_activity_store where `INTEGRAL_ACTIVITY_ID` = #{integralActivityId}
+    </delete>
+</mapper>

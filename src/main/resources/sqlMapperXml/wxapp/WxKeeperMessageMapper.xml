@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxKeeperMessageMapper">
+<!-- 查询个人消息通知 -->
+	<select id="queryMessage" resultType="WxKeeperMessage" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select m.id,m.title,m.CREATED_TIME createdTime,
+		        o.order_type orderType,o.take_style takeStyle,
+				mr.is_read isRead,m.order_id orderId
+				from t_evm_message m
+				left join
+					t_evm_message_reveice mr
+				on m.id = mr.msg_id	
+				left join
+					t_evm_order o
+				on o.id = m.order_id	
+				where m.IS_DEL = 0
+				and mr.open_id=#{openId}
+				order by m.id desc
+				
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+<!-- 查询消费者个人消息通知 -->
+	<select id="queryCustomerMessage" resultType="WxKeeperMessage" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select m.id,m.title,m.CREATED_TIME createdTime,
+				mr.is_read isRead
+				from t_evm_message m
+				left join
+					t_evm_message_reveice mr
+				on m.id = mr.msg_id	
+				where m.IS_DEL = 0
+				and mr.open_id=#{openId}
+				order by m.id desc
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+	</select>
+	
+<!-- 查询消息通知详情 -->
+	<!-- <select id="queryRefundDetail" resultType="WxKeeperMessage" parameterType="PagingDto">
+		SELECT
+			o.TOTAL_BALANCES totalBalances,
+			o.DISCOUNT_PRICE discountPrice,
+			(
+				SELECT
+					f.FILE_PATH
+				FROM
+					t_evm_static_files f
+				WHERE
+					f.RELATION_ID = g.ID
+				AND FILE_TYPE = 0
+				AND BIG_TYPE = 0
+				AND SMALL_TYPE = 0
+			) filePath,
+			g.goods_name goodsName,
+			o.order_no orderNo,
+			o.created_time createdTime,
+			m.created_time applyTime
+		FROM
+			t_evm_message m
+		LEFT JOIN t_evm_order o ON m.order_id = o.id
+		LEFT JOIN t_evm_order_detail od ON od.order_id = o.id
+		LEFT JOIN t_evm_goods g ON g.id = od.goods_id
+		WHERE
+			m.is_del = 0
+			and m.id=#{id}		
+	</select> -->
+	<!-- 查询消息通知详情 -->
+	<resultMap type="WxKeeperMessage" id="messageMap">
+		<id column="id" property="id"/>
+		<result column="totalBalances" property="totalBalances"/>
+		<result column="discountPrice" property="discountPrice"/>
+		<result column="orderNo" property="orderNo"/>
+		<result column="createdTime" property="createdTime"/>
+		<result column="applyTime" property="applyTime"/>
+		<collection property="orderDetails"  column="orderId" ofType="WxKeeperGoods" javaType="ArrayList" select="queryMessageOrderGoodsList"></collection>
+	</resultMap>
+	<select id="queryRefundDetail" resultMap="messageMap" parameterType="PagingDto">
+		SELECT
+			m.id,
+			o.TOTAL_BALANCES totalBalances,
+			o.DISCOUNT_PRICE discountPrice,
+			o.order_no orderNo,
+			o.created_time createdTime,
+			m.created_time applyTime,
+			m.order_id orderId
+		FROM
+			t_evm_message m
+		LEFT JOIN t_evm_order o ON m.order_id = o.id
+		WHERE
+			m.is_del = 0
+			and o.is_del=0
+			and m.id=#{id}		
+	</select>	
+	<select id="queryMessageOrderGoodsList" parameterType="java.lang.Integer" resultType="WxKeeperGoods">
+	   select g.id,g.goods_name goodsName,
+	   (select f.file_path from t_evm_static_files f where is_del=0 and 
+	   	f.relation_id=od.goods_id and f.file_type = 0 and f.big_type=0
+	   	and f.small_type=0) goodsImage
+	   from t_evm_goods g
+	   left join t_evm_order_detail od on g.id = od.goods_id 
+	   where od.order_id = #{orderId}
+	</select>	
+	<!-- 修改是否已读 -->	
+	<update id="editIsRead" parameterType="WxKeeperMessage">
+    	UPDATE t_evm_message_reveice SET IS_READ = 1 WHERE MSG_ID = #{id} and open_id=#{openId}
+    </update>	
+	<!-- 添加消息 -->
+	<insert id="insertMessage" parameterType="WxKeeperMessage" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_message(`OPEN_ID`,`TITLE`,`CONTENTS`,`TYPE`,`PAGE_URL`) values (#{openId},#{title},#{contents},#{type},#{filePath})
+	</insert>
+	<insert id="insertMessageReveice" parameterType="WxKeeperMessage" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_message_reveice(`OPEN_ID`,`MSG_ID`,`SEND_TYPE`) values (#{sendOpenId},#{id},#{sendType})
+	</insert>
+</mapper>

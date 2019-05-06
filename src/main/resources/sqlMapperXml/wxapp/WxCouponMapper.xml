@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxCouponMapper">
+	<sql id="couponColumn">
+		t.`id` `id`,
+	      t.`TITLE` `title`,
+	      t.`MONEY` `money`,
+	      t.`FULL_MONEY` `fullMoney`,
+	      t.`COUPON_TYPE` `couponType`,
+	      t.`COUPON_DESC` `couponDesc`,
+	      t.`USER_NUM` `userNum`,
+	      t.`USER_DAY_NUM` `userDayNum`,
+	      t.`IS_COUPON_NUM` `isCouponNum`,
+	      t.`COUPON_NUM` `couponNum`,
+	      date_format(t.`START_TIME`,'%Y.%m.%d') `startTime`,
+	      date_format(t.`END_TIME`,'%Y.%m.%d') `endTime`
+	</sql>
+   <!-- 查询我的优惠券 -->
+   <select id="queryCouponMy" resultType="WxCoupon" parameterType="PagingDto">
+      SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+		        	uc.`ID` `id`,
+		        	uc.`STATUS` `status`,
+		        	uc.`COUPON_NO` `couponNo`,
+				      t.`TITLE` `title`,
+				      t.`MONEY` `money`,
+				      t.`FULL_MONEY` `fullMoney`,
+				      t.`COUPON_TYPE` `couponType`,
+				      t.`COUPON_DESC` `couponDesc`,
+				      date_format(t.`CREATED_TIME`,'%Y.%m.%d') `startTime`,
+				      if(t.`DUE_TYPE` = 0,date_format(t.`DUE_TIME`,'%Y.%m.%d'),date_format(date_add(uc.`CREATED_TIME`, interval t.`DUE_TIME` day),'%Y.%m.%d')) `endTime`,
+				      (select f.file_path filePath from t_evm_static_files f
+              		where f.RELATION_ID=t.id and f.is_del=0 and f.file_type=0
+            				and f.big_type=1 and f.small_type=0) counponImages 
+			      from t_evm_wx_user_coupon uc 
+			      left join t_evm_coupon t on t.`ID` = uc.`COUPON_ID` 
+			      where uc.`IS_DEL` = 0 
+			      and uc.`OPEN_ID` = #{openId} 
+			      <if test="money != null">
+			      	and t.`FULL_MONEY` &lt;= #{money}
+			      </if>
+			      <if test="status != null">
+			      	and uc.`STATUS` = #{status}
+			      </if>
+			      order by uc.`CREATED_TIME` asc 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+   </select>
+   
+   
+   <!-- 查询我的可用优惠券 -->
+   <select id="queryOrderCoupon" resultType="WxCoupon" parameterType="PagingDto">
+      select 
+		uc.`ID` `id`,
+		c.`TITLE` `title`,
+		c.`MONEY` `money`,
+		c.`FULL_MONEY` `fullMoney`,
+		c.`COUPON_TYPE` `couponType`,
+		c.`COUPON_DESC` `couponDesc`,
+		IF(temp1.`IS_ACTIVITY` = 2,c.`IS_ACTIVITY_SHARED`,1) `isActivityShared`,
+		date_format(c.`CREATED_TIME`,'%Y.%m.%d') `startTime`,
+		if(c.`DUE_TYPE` = 0,date_format(c.`DUE_TIME`,'%Y.%m.%d'),date_format(date_add(uc.`CREATED_TIME`, interval c.`DUE_TIME` day),'%Y.%m.%d')) `endTime`,
+		(select f.file_path filePath from t_evm_static_files f
+              		where f.RELATION_ID=c.id and f.is_del=0 and f.file_type=0
+            				and f.big_type=1 and f.small_type=0) counponImages 
+		from t_evm_wx_user_coupon uc 
+		left join  t_evm_coupon c on c.`ID` = uc.`COUPON_ID` 
+		left join t_evm_coupon_store_dz cs on cs.`COUPON_ID` = c.`ID`
+		left join t_evm_coupon_goods_dz cg on cg.`COUPON_ID` = c.`ID`
+		left join (select `GOODS_ID`,`GOODS_PRICE`,`IS_ORIGINAL`,`IS_ACTIVITY` from (
+		<foreach collection="itemList" item="obj">
+            SELECT #{obj.goodsId} `GOODS_ID`,#{obj.goodsPrice} `GOODS_PRICE`,#{obj.isOriginal} `IS_ORIGINAL`,#{obj.isActivity} `IS_ACTIVITY` UNION
+        </foreach>
+		SELECT 0 `GOODS_ID`,0 `GOODS_PRICE`,0 `IS_ORIGINAL`,0 `IS_ACTIVITY` 
+		) temp ) temp1 on temp1.`GOODS_ID` = cg.`GOODS_ID` 
+		AND (
+			(temp1.`IS_ACTIVITY` = 2 and ((c.`IS_ORIGINAL` = 0 AND temp1.`IS_ORIGINAL` = 0) or c.`IS_ORIGINAL` = 1)) or 
+			(temp1.`IS_ACTIVITY` != 2 and (c.`IS_ORIGINAL` = 0 AND temp1.`IS_ORIGINAL` = 0 and temp1.`IS_ACTIVITY` = 0) OR (c.`IS_ORIGINAL` = 1 and c.`IS_ACTIVITY_SHARED` = 1))
+		)
+		where uc.`IS_DEL` = 0 
+		and uc.`STATUS` = 0 
+		and uc.`OPEN_ID` = #{openId} 
+		and cs.`STORE_ID` = #{storeId}
+		and cg.`GOODS_ID` in 
+		<foreach collection="itemList" item="obj" separator="," open="(" close=")">
+            #{obj.goodsId}
+        </foreach>
+		GROUP BY uc.`ID`
+		having SUM(temp1.`GOODS_PRICE`) &gt;= c.`FULL_MONEY` 
+	    order by c.`END_TIME` asc 
+   </select>
+   
+   
+   <!-- 查询优惠券列表 -->
+   <select id="queryCouponList" resultType="WxCoupon" parameterType="PagingDto">
+      SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+		        	(select count(uc.`ID`) from t_evm_wx_user_coupon uc where uc.`COUPON_ID` = t.`ID` and uc.`OPEN_ID` = #{openId}) `status`,
+		        	(select f.file_path filePath from t_evm_static_files f
+              		where f.RELATION_ID=t.id and f.is_del=0 and f.file_type=0
+            				and f.big_type=1 and f.small_type=0) counponImages ,
+			      <include refid="couponColumn" />
+			      from t_evm_coupon t 
+			      where t.`IS_DEL` = 0 and t.`STATUS` = 0 and t.IS_SHOW = 0 and t.`TYPE` = 0 
+			      and NOW() BETWEEN t.`START_TIME` and t.`END_TIME`
+			      order by t.`END_TIME` asc 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+   </select>
+   <!-- 查询我的优惠券 -->
+   <select id="queryUserCouponById" resultType="WxCoupon" parameterType="Integer">
+   		select 
+		t.`id` `id`,
+	      t.`TITLE` `title`,
+	      t.`MONEY` `money`,
+	      t.`FULL_MONEY` `fullMoney`,
+	      t.`COUPON_TYPE` `couponType`,
+	      t.`COUPON_DESC` `couponDesc`
+		from t_evm_wx_user_coupon uc 
+		left join t_evm_coupon t on t.`ID` = uc.`COUPON_ID`
+		where uc.`IS_DEL` = 0 and uc.`STATUS` = 0 
+		and uc.`ID` = #{id}
+   </select>
+   <!-- 查询优惠券 -->
+   <select id="queryCouponById" resultType="WxCoupon" parameterType="Integer">
+   		select 
+		<include refid="couponColumn" />
+		from t_evm_coupon t 
+		where t.`IS_DEL` = 0 and t.`STATUS` = 0 
+		and NOW() BETWEEN t.`START_TIME` and t.`END_TIME`
+		and t.`ID` = #{id}
+   </select>
+   <!-- 查询优惠券活动 -->
+   <select id="queryCouponActivityById" resultType="WxCoupon" parameterType="Integer">
+   		select 
+		ca.`ID` `id`,
+		ca.`COUPON_ID` `couponId`,
+		ca.`USER_NUM` `userNum`,
+		ca.`USER_DAY_NUM` `userDayNum`,
+		ca.`COUPON_NUM` `couponNum`,
+		ca.`IS_COUPON_NUM` `isCouponNum`,
+		c.`TITLE` `title`,
+		(select f.file_path filePath from t_evm_static_files f
+		              		where f.RELATION_ID=c.id and f.is_del=0 and f.file_type=0
+		            				and f.big_type=1 and f.small_type=0) `counponImages` 
+		from t_evm_coupon_activity ca 
+		left join t_evm_coupon c on c.`ID` = ca.`COUPON_ID` 
+		where ca.`IS_DEL` = 0 and ca.`STATUS` = 0 and c.`IS_DEL` = 0 and c.`STATUS` = 0 
+		and NOW() BETWEEN c.`START_TIME` and c.`END_TIME`
+		and NOW() BETWEEN ca.`START_TIME` and ca.`END_TIME`
+		<if test="id != null">
+			and ca.`ID` = #{id}
+		</if>
+		<if test="type != null">
+			and ca.`TYPE` = #{type}
+		</if>
+		<if test="formType != null">
+			and ca.`FORM_TYPE` = #{formType}
+		</if>
+   </select>
+   <!-- 查询用户当前优惠券领取数量 -->
+   <select id="queryUserCouponActivityCount" resultType="Integer" parameterType="String">
+   		select count(*) from t_evm_wx_user_coupon uc 
+   		where uc.`IS_DEL` = 0 and uc.`OPEN_ID` = #{openId} and uc.`COUPON_ID` = #{couponId} 
+   </select>
+   <select id="queryUserCouponActivityDayCount" resultType="Integer" parameterType="String">
+   		select count(*) from t_evm_wx_user_coupon uc 
+   		where uc.`IS_DEL` = 0 and uc.`OPEN_ID` = #{openId} and uc.`COUPON_ID` = #{couponId} 
+   		and DATE_FORMAT(uc.`CREATED_TIME`,'%Y-%m-%d') = DATE_FORMAT(NOW(),'%Y-%m-%d')  
+   </select>
+   <!-- 优惠券库存-1 -->
+   <update id="updateCouponCouponNum" parameterType="Integer">
+   		update t_evm_coupon set `COUPON_NUM` = `COUPON_NUM` - 1 where `ID` = #{id}
+   </update>
+   <!-- 活动优惠券库存-1 -->
+   <update id="updateCouponActivityCouponNum" parameterType="Integer">
+   		update t_evm_coupon_activity set `COUPON_NUM` = `COUPON_NUM` - 1 where `ID` = #{id}
+   </update>
+   
+   <insert id="insertUserCoupon"  parameterType="WxCoupon">
+		insert into t_evm_wx_user_coupon(`OPEN_ID`,`COUPON_NO`,`COUPON_ID`,`SOURCE_TYPE`,`SOURCE_ID`,`STATUS`) values (#{openId},#{couponNo},#{id},#{sourceType},#{sourceId},#{status})
+	</insert>
+</mapper>

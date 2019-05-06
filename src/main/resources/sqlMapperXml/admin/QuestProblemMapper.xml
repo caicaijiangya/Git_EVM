@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.QuestProblemMapper">
+<!-- 查询问题列表 -->
+	<select id="selectDataGrid" parameterType="QuestProblem" resultType="QuestProblem">
+		select p.id,p.title,p.type,p.seq,p.created_time createdTime,d.name
+		from t_evm_quest_problem p
+		left join t_evm_quest_dimension d on p.DIMENSION_ID = d.id
+		where p.is_del=0
+		<if test="title!=null and title!=''">
+			and (p.title like CONCAT('%',#{title},'%')
+				or d.name like CONCAT('%',#{title},'%'))
+		</if>
+		<if test="type!=null">
+			and p.type=#{type}
+		</if>
+		order by seq asc
+	</select>
+	<select id="selectAnswerList" parameterType="QuestProblem" resultType="QuestProblem">
+		select pd.id,pd.title,pd.score,pd.seq seq2,pd.created_time createdTime
+		from t_evm_quest_problem_detail pd
+		where pd.is_del=0 and pd.PROBLEM_ID=#{id}
+		order by pd.seq asc
+	</select>
+	<update id="updateAnsewrById" >
+		update t_evm_quest_problem_detail set is_del = 1 where id=#{id}
+	</update>
+	<insert id="insertAnswer" parameterType="QuestProblem">
+		insert into t_evm_quest_problem_detail(problem_id,title,score,seq) 
+		values(#{problemId},#{title},#{score},#{seq2})
+	</insert>
+	
+	<select id="selectAnswerById" parameterType="java.lang.Integer" resultType="QuestProblem">
+		select id, title,score,seq seq2 from t_evm_quest_problem_detail where id=#{id}
+	</select>
+	<update id="updateAnswerById" parameterType="QuestProblem">
+		update t_evm_quest_problem_detail set title=#{title},score=#{score},seq=#{seq2} where id=#{id}
+	</update>
+	
+	<!-- 查询测试结果导出数据 -->
+	<select id="queryQuestExportData" resultType="java.util.Map" parameterType="ExportDto">
+		select 
+		u.`USER_NAME` `userName`,
+		date_format(qr.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `date`,
+		qr.`SCORE` `score`,
+		qr.`REAL_SCORE` `realScore`,
+		qc.`KEY` `key`,
+		qc.`NAME` `name` 
+		from t_evm_quest_result qr 
+		left join t_evm_quest_conclusion qc on qc.`ID` = qr.`CONCLUSION_ID` 
+		LEFT JOIN t_evm_wx_user u on u.`OPEN_ID` = qr.`OPEN_ID`  
+		where qr.`IS_DEL` = 0
+		and qr.`CREATED_TIME` BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+	</select>
+</mapper>

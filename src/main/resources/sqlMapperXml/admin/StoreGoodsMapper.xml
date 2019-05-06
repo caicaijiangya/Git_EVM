@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.StoreGoodsMapper">
+	<!-- 查询商品列表 -->
+	<select id="selectDataGrid" resultType="Goods">
+        select 
+		sg.`ID` `id`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImage`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		sg.`GOODS_AMOUNT` `goodsAmount`,
+		gb.`NAME` `brandName`,
+		gs.`SPEC_NAME` `specName`,
+		sg.`CREATED_TIME` `createdTime`,
+		s.`STORE_NAME` `storeName`
+		from t_evm_store_goods sg 
+		left join t_evm_store s on s.`ID` = sg.`STORE_ID` 
+		left join t_evm_goods_spec gs on gs.`ID` = sg.`SPEC_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		left join t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		left join t_evm_static_files sf on sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		where sg.`IS_DEL` = 0 
+		<if test="storeId != null and storeId != 0">
+			and sg.`STORE_ID` = #{storeId}
+		</if>
+		<if test="goodsName != null">
+			and (
+				g.`GOODS_NAME` like CONCAT(CONCAT('%',#{goodsName}),'%') OR
+				gs.`SPEC_NAME` like CONCAT(CONCAT('%',#{goodsName}),'%') OR
+				gb.`NAME` like CONCAT(CONCAT('%',#{goodsName}),'%') OR
+				gs.`GOODS_CODE` like CONCAT(CONCAT('%',#{goodsName}),'%') 
+			)
+		</if>
+		order by sg.`CREATED_TIME` desc
+    </select>  
+    <select id="selectStoreList" resultType="Tree">
+    	select 
+		s.`ID` `id`,
+		s.`STORE_NAME` `text`
+		from t_evm_store s 
+		where s.`IS_DEL` = 0 
+    </select>
+    <select id="selectGoodsAmount" resultType="Integer" parameterType="Integer">
+    	select gs.`GOODS_AMOUNT` from t_evm_goods_spec gs where gs.`ID` = #{id}
+    </select>
+    <select id="selectStoreGoodsAmount" resultType="Integer" parameterType="Integer">
+    	select sg.`GOODS_AMOUNT` from t_evm_store_goods sg where sg.`STORE_ID` = #{storeId} and sg.`SPEC_ID` = #{goodsId} 
+    </select>
+    <select id="queryStoreGoodsList" parameterType="Integer" resultType="StoreGoods">
+ 		select ID id,GOODS_ID goodsId,GOODS_AMOUNT goodsAmount from t_evm_store_goods where STORE_ID = #{storeId}
+ 	</select>  
+    
+    <select id="selectStoreGoodsObj" resultType="StoreGoods" parameterType="Integer">
+    	select 
+		sg.`ID` `id`,
+		sg.`SPEC_ID` `specId`,
+		sg.`GOODS_ID` `goodsId`,
+		CONCAT(g.`GOODS_NAME`,gs.`SPEC_NAME`) `goodsName`,
+		sg.`GOODS_AMOUNT` `goodsAmount`,
+		s.`STORE_NAME` `storeName`
+		from t_evm_store_goods sg 
+		left join t_evm_store s on s.`ID` = sg.`STORE_ID` 
+		left join t_evm_goods_spec gs on gs.`ID` = sg.`SPEC_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		where sg.`ID` = #{id} 
+    </select>
+    
+    <!-- 下载门店商品  -->
+	<select id="downLoadStoreGoods" resultType="java.util.Map" parameterType="Goods">
+		select 
+		s.`STORE_NAME` `storeName`,
+		gb.`NAME` `brandName`,
+		gs.`GOODS_CODE` `goodsCode`,
+		g.`GOODS_NAME` `goodsName`,
+		gs.`SPEC_NAME` `specName`,
+		(select group_concat(gc.`NAME`) from t_evm_goods_classify_dz gcdz left join t_evm_goods_classify gc on gc.`ID` = gcdz.`CLASSIFY_ID` where gcdz.`IS_DEL` = 0 and gcdz.`GOODS_ID` = sg.`GOODS_ID` ORDER BY gc.`SEQ` ASC) `classifyName`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		sg.`GOODS_AMOUNT` `goodsAmount`,
+		if(g.`STATUS` = 0,'已下架','已上架') `status`,
+		if(g.`STATUS` = 1,DATE_FORMAT(g.`LAST_MODIFIED_TIME`,'%Y-%m-%d'),'') `createTime`,
+		if(g.`STATUS` = 0,DATE_FORMAT(g.`LAST_MODIFIED_TIME`,'%Y-%m-%d'),'') `lastModifiedTime` 
+		from t_evm_store_goods sg 
+		left join t_evm_store s on s.`ID` = sg.`STORE_ID`
+		left join t_evm_goods g on g.`ID` = sg.`GOODS_ID`
+		left join t_evm_goods_spec gs on gs.`ID` = sg.`SPEC_ID`
+		left join t_evm_goods_brand gb on gb.`ID` = g.`BRAND_ID`
+		where sg.`IS_DEL` = 0 
+		<if test="storeId != null and storeId != 0">
+			and sg.`STORE_ID` = #{storeId}
+		</if>
+		<if test="goodsName != null">
+			and g.`GOODS_NAME` like CONCAT(CONCAT('%',#{goodsName}),'%')
+		</if>
+		order by sg.`CREATED_TIME` desc
+	</select> 
+    <update id="updateStoreGoods" parameterType="StoreGoods">
+    	update t_evm_store_goods set 
+    	`GOODS_AMOUNT` = `GOODS_AMOUNT` + #{goodsAmount},
+    	`GOODS_TOTAL_AMOUNT` = `GOODS_TOTAL_AMOUNT` + #{goodsAmount},
+    	`LAST_MODIFIED_TIME` = NOW() 
+    	where `ID` = #{id}
+    </update>
+   	<insert id="insertStoreGoods" parameterType="StoreGoods">
+   		insert into t_evm_store_goods(`STORE_ID`,`GOODS_ID`,`SPEC_ID`,`GOODS_AMOUNT`,`GOODS_TOTAL_AMOUNT`) values (#{storeId},#{goodsId},#{specId},#{goodsAmount},#{goodsAmount})
+   	</insert>
+   	<delete id="deleteStoreGoods" parameterType="Integer">
+   		delete from t_evm_store_goods where `ID` = #{id}
+   	</delete>
+</mapper>

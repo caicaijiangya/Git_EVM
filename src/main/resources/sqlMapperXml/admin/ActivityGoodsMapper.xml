@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.ActivityGoodsMapper">
+<select id="selectActivityGoodsById" parameterType="java.lang.Integer" resultType="ActivityGoods">
+	select ag.id, ag.ACTIVITY_ID activityId,ag.goods_id goodsId,
+		   ifnull(ag.activity_amount,0) activityAmount,ag.activity_price activityPrice,
+		   ag.buy_num buyNum,
+		   if(ag.`STORE_ID` = 0,gs.`GOODS_AMOUNT`,sg.`GOODS_AMOUNT`) `goodsAmount`,ifnull(gs.goods_rem_amount,0) goodsRemAmount,
+		   a.activity_type activityType,
+		   ag.IS_FREE_FREIGHT isFreeFreight,
+		   ag.`STORE_ID` `storeId` 
+	 from t_evm_activity_goods ag
+	 left join t_evm_store_goods sg on sg.`SPEC_ID` = ag.`GOODS_ID` and sg.`STORE_ID` = ag.`STORE_ID` 
+	 left join t_evm_goods_spec gs on gs.`ID` = ag.goods_id
+	 left join t_evm_activity a on a.id = ag.activity_Id
+	 where ag.id=#{id}
+</select>
+<!-- 修改商品的可用库存 -->
+	<update id="updateGoods" parameterType="ActivityGoods">
+		update t_evm_goods_spec set GOODS_AMOUNT = ifnull(GOODS_AMOUNT,0)-#{amount},
+		goods_rem_amount=ifnull(goods_rem_amount,0)-#{amount} where id=#{goodsId}
+	</update>  
+	<!-- 修改门店商品的可用库存 -->
+	<update id="updateStoreGoods" parameterType="ActivityGoods">
+		update t_evm_store_goods set GOODS_AMOUNT = ifnull(GOODS_AMOUNT,0)-#{amount} 
+		where STORE_ID=#{storeId} and SPEC_ID=#{goodsId}
+	</update>  
+<!-- 修改商品的活动库存 -->
+	<update id="updateActivityAmount" parameterType="java.lang.Integer">
+		update t_evm_activity_goods set ACTIVITY_AMOUNT = ifnull(ACTIVITY_AMOUNT,0)+#{amount} where id=#{id}
+	</update> 
+<!-- 修改拼团活动参数 -->
+	<update id="updateActivityGoods" parameterType="ActivityGoods">
+		update t_evm_activity_goods set ACTIVITY_PRICE=#{activityPrice},
+			BUY_NUM=#{buyNum},IS_FREE_FREIGHT=#{isFreeFreight}  
+		where id=#{id}
+	</update> 	
+	
+<!-- 获取活动商品图片 -->	
+	<select id="selectImgById" parameterType="ActivityGoods" resultType="StaticFiles">
+	select f.file_path filePath,f.small_type smallType from t_evm_static_files f
+	where f.relation_id = #{goodsId} and f.file_Type =0 and f.big_type=#{actType}
+</select>  
+<!-- 删除活动商品图片   --> 
+	<delete id="deleteImg" parameterType="ActivityGoods">
+    	delete from t_evm_static_files where `RELATION_ID` = #{goodsId}
+    	and `FILE_TYPE` = 0
+    	and `BIG_TYPE` = #{actType} 
+    </delete>
+    
+    <!-- 查询活动商品拼团信息 -->	
+	<select id="selectActivityGoodsCollage" resultType="ActivityGoodsCollage" parameterType="Integer">
+		select 
+		agc.`ID` `id`,
+		agc.`ACTIVITY_GOODS_ID` `activityGoodsId`,
+		agc.`COLLAGE_NUM` `collageNum`,
+		agc.`COLLAGE_TIME` `collageTime`,
+		agc.`COLLAGE_PRICE` `collagePrice` 
+		from t_evm_activity_goods_collage agc 
+		where agc.`IS_DEL` = 0 and agc.`ACTIVITY_GOODS_ID` = #{activityGoodsId}
+		order by agc.`COLLAGE_NUM` asc 
+	</select> 
+    
+    <!-- 查询活动商品砍价信息 -->	
+	<select id="selectActivityGoodsBargainById" resultType="ActivityGoodsBargain" parameterType="Integer">
+		select 
+		agb.`ID` `id`,
+		agb.`ACTIVITY_GOODS_ID` `activityGoodsId`,
+		agb.`BARGAIN_NUM` `bargainNum`,
+		agb.`HELP_BARGAIN_NUM` `helpBargainNum`,
+		agb.`GIVING_NUM` `givingNum`,
+		agb.`PRICE` `price`,
+		agb.`COUPON_ID` `couponId`,
+		agb.`INTEGRAL` `integral`,
+		agb.`TYPE` `type`,
+		agb.`TIME` `time`,
+		agb.`CREATED_TIME` `createdTime`,
+		agb.`NOTE` `note`,
+		agb.`BARGAIN_TYPE` `bargainType`,
+		sf0.`FILE_PATH` `image0`,
+		sf1.`FILE_PATH` `image1`,
+		sf2.`FILE_PATH` `image2` 
+		from t_evm_activity_goods_bargain agb 
+		left join t_evm_static_files sf0 on sf0.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf0.`FILE_TYPE` = 0 and sf0.`BIG_TYPE` = 8 and sf0.`SMALL_TYPE` = 0
+		left join t_evm_static_files sf1 on sf1.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf1.`FILE_TYPE` = 0 and sf1.`BIG_TYPE` = 8 and sf1.`SMALL_TYPE` = 1
+		left join t_evm_static_files sf2 on sf2.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf2.`FILE_TYPE` = 0 and sf2.`BIG_TYPE` = 8 and sf2.`SMALL_TYPE` = 2
+		where agb.`IS_DEL` = 0 and agb.`ACTIVITY_GOODS_ID` = #{id}
+	</select> 
+	
+	<select id="selectActivityGoodsBargainLadder" resultType="ActivityGoodsBargainLadder" parameterType="Integer">
+		select 
+		agbl.`GOODS_ID` `goodsId`, 
+		agbl.`FULL_NUM` `fullNum`, 
+		agbl.`GOODS_NAME` `goodsName`,
+		agbl.`GOODS_NUM` `goodsNum` 
+		from t_evm_activity_goods_bargain_ladder agbl 
+		where agbl.`BARGAIN_ID` = #{bargainId} 
+	</select>
+	
+	<select id="selectActivityGoodsBargainPrice" resultType="ActivityGoodsBargainPrice" parameterType="Integer">
+		select 
+		agbp.`PRICE` `price`, 
+		agbp.`USE_NUM` `useNum`
+		from t_evm_activity_goods_bargain_price agbp 
+		where agbp.`BARGAIN_ID` = #{bargainId} 
+	</select>
+	<select id="selectActivityFullgift" resultType="ActivityFullgift" parameterType="Integer">
+		select 
+		af.`ID` `id`,
+		af.`ACTIVITY_ID` `activityId`, 
+		af.`GOODS_ID` `goodsId`,
+		if(af.`STORE_ID` = 0,'小程序',s.`STORE_NAME`) `storeName`,
+		CONCAT(g.`GOODS_NAME`,gs.`SPEC_NAME`) `goodsName`,
+		sf.`FILE_PATH` `goodsImage`,
+		af.`GOODS_NUM` `goodsNum`,
+		af.`FULL_PRICE` `fullPrice`,
+		af.`AMOUNT` `amount`,
+		af.`CREATED_TIME` `createdTime`
+		from t_evm_activity_fullgift af 
+		left join t_evm_store s on s.`ID` = af.`STORE_ID` 
+		left join t_evm_goods_spec gs on gs.`ID` = af.`GOODS_ID` 
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		left join t_evm_static_files sf on sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 0 and sf.`SMALL_TYPE` = 3
+		where af.`ACTIVITY_ID` = #{activityId} and af.`STORE_ID` = #{storeId}
+	</select>
+	<!-- 下载砍价信息  -->
+	<select id="downLoadBargain" resultType="java.util.Map" parameterType="ExportDto">
+		select 
+		u.`NICK_NAME` `nickName`,
+		bgd.`PRICE` `price`,
+		IF(bgd.`IS_BARGAIN` = 0,u.`NICK_NAME`,'') `userName`,
+		IF(bgd.`IS_BARGAIN` = 0,u.`MOBILE_NO`,'') `mobileNo`,
+		IF(bgd.`IS_BARGAIN` = 0,DATE_FORMAT(bg.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s'),'') `bargainTime`,
+		IF(bgd.`IS_BARGAIN` = 0,o.`ORDER_NO`,'') `orderNo`,
+		IF(bgd.`IS_BARGAIN` = 0,DATE_FORMAT(o.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s'),'') `orderTime`,
+		IF(bgd.`IS_BARGAIN` = 0,if(ot.`STATUS` = 1,DATE_FORMAT(ot.`LAST_MODIFIED_TIME`,'%Y-%m-%d %H:%i:%s'),''),'') `orderTransTime`,
+		IF(bgd.`IS_BARGAIN` = 0,ot.`TRANS_NO`,'') `transNo`,
+		IF(bgd.`IS_BARGAIN` = 0,IF(o.`STATUS` = 0,'待付款',IF(o.`STATUS` = 1,'待发货',IF(o.`STATUS` = 2,'待取货',IF(o.`STATUS` = 3,'待退款',IF(o.`STATUS` = 4,'已退款',IF(o.`STATUS` = 5,'订单取消',IF(o.`STATUS` = 6,'订单完成',IF(o.`STATUS` = 7,'退货待审核',IF(o.`STATUS` = 8,'退货待收货',''))))))))),'') `orderStatus`,
+		IF(bgd.`IS_BARGAIN` = 0,IF(bg.`ORDER_ID` is null,g.`GOODS_NAME`,g1.`GOODS_NAME`),'') `goodsName`,
+		IF(bgd.`IS_BARGAIN` = 0,IF(bg.`ORDER_ID` is null,gs.`GOODS_CODE`,gs1.`GOODS_CODE`),'') `goodsCode`,
+		IF(bgd.`IS_BARGAIN` = 0,IF(bg.`ORDER_ID` is null,gs.`GOODS_PRICE`,gs1.`GOODS_PRICE`),'') `goodsPrice`,
+		IF(bgd.`IS_BARGAIN` = 0,IF(bg.`ORDER_ID` is null,'',od.`GOODS_NUMS`),'') `goodsNum`,
+		IF(bgd.`IS_BARGAIN` = 0,ag.`ACTIVITY_PRICE`,'') `activityPrice`,
+		IF(bgd.`IS_BARGAIN` = 0,bg.`JOIN_PRICE`,'') `joinPrice`,
+		IF(bgd.`IS_BARGAIN` = 0,ot.`BALANCES`,'') `balances`,
+		IF((select count(o1.`ID`) from t_evm_order o1 where o1.`OPEN_ID` = bgd.`OPEN_ID` and o1.`ACTIVITY_ID` != bg.`ACTIVITY_ID` ) &lt;= 1,'新客户','老客户') `newOld`
+		from t_evm_bargain_goods bg 
+		left join t_evm_bargain_goods_detail bgd on bgd.`BARGAIN_ID` = bg.`ID`
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = bg.`ACTIVITY_ID` and ag.`GOODS_ID` = bg.`GOODS_ID`
+		left join t_evm_goods_spec gs on gs.`ID` = bg.`GOODS_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		left join t_evm_wx_user u on u.`OPEN_ID` = bgd.`OPEN_ID`
+		left join t_evm_order o on o.`ID` = bg.`ORDER_ID`
+		left join t_evm_order_detail od on od.`ORDER_ID` = o.`ID`
+		left join t_evm_goods_spec gs1 on gs1.`ID` = od.`SPEC_ID`
+		left join t_evm_goods g1 on g1.`ID` = gs1.`GOODS_ID`
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID`
+		where bg.`IS_DEL` = 0  and bgd.`STATUS` = 1 
+		and bg.`CREATED_TIME` BETWEEN CONCAT(#{startDate},' 00:00:00') and CONCAT(#{endDate},' 23:59:59')
+		ORDER BY bg.`CREATED_TIME`,bgd.`IS_BARGAIN` ASC
+	</select>
+	
+	<!-- 删除拼团活动参数 -->
+	<delete id="deleteActivityGoodsCollage" parameterType="Integer">
+		delete from t_evm_activity_goods_collage where `ACTIVITY_GOODS_ID` = #{activityGoodsId}
+	</delete>
+	<!-- 添加拼团活动参数 -->
+	<insert id="insertActivityGoodsCollage" parameterType="ActivityGoodsCollage" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_activity_goods_collage(`ACTIVITY_GOODS_ID`,`COLLAGE_NUM`,`COLLAGE_TIME`,`COLLAGE_PRICE`)
+		values 
+		(#{activityGoodsId},#{collageNum},#{collageTime},#{collagePrice})
+	</insert>
+	<!-- 修改砍价活动参数 -->
+	<update id="updateActivityGoodsBargain" parameterType="ActivityGoodsBargain">
+		update t_evm_activity_goods_bargain set 
+			<if test="bargainNum != null">
+				`BARGAIN_NUM`=#{bargainNum},
+			</if>
+			<if test="helpBargainNum != null">
+				`HELP_BARGAIN_NUM`=#{helpBargainNum},
+			</if>
+			<if test="givingNum != null">
+				`GIVING_NUM`=#{givingNum},
+			</if>
+			<if test="price != null">
+				`PRICE`=#{price},
+			</if>
+			<if test="couponId != null">
+				`COUPON_ID`=#{couponId},
+			</if>
+			<if test="integral != null">
+				`INTEGRAL`=#{integral},
+			</if>
+			<if test="type != null">
+				`TYPE`=#{type},
+			</if>
+			<if test="bargainType != null">
+				`BARGAIN_TYPE`=#{bargainType},
+			</if>
+			<if test="time != null">
+				`TIME`=#{time},
+			</if>
+			`LAST_MODIFIED_TIME` = NOW()
+		where `ACTIVITY_GOODS_ID` = #{activityGoodsId} and `IS_DEL` = 0
+	</update> 
+	<!-- 添加砍价活动参数 -->
+	<insert id="insertActivityGoodsBargain" parameterType="ActivityGoodsBargain" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_activity_goods_bargain(`ACTIVITY_GOODS_ID`,`BARGAIN_NUM`,`HELP_BARGAIN_NUM`,`GIVING_NUM`,`PRICE`,`COUPON_ID`,`INTEGRAL`,`TYPE`,`BARGAIN_TYPE`,`TIME`)
+		values 
+		(#{activityGoodsId},#{bargainNum},#{helpBargainNum},#{givingNum},#{price},#{couponId},#{integral},#{type},#{bargainType},#{time})
+	</insert>
+	<delete id="deleteActivityGoodsBargainLadder" parameterType="Integer">
+		delete from t_evm_activity_goods_bargain_ladder where `BARGAIN_ID` = #{bargainId}
+	</delete>
+	<insert id="insertActivityGoodsBargainLadder" parameterType="ActivityGoodsBargainLadder" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_activity_goods_bargain_ladder(`BARGAIN_ID`,`GOODS_ID`,`FULL_NUM`,`GOODS_NAME`,`GOODS_NUM`)
+		values 
+		(#{bargainId},#{goodsId},#{fullNum},#{goodsName},#{goodsNum})
+	</insert>
+	<delete id="deleteActivityGoodsBargainPrice" parameterType="Integer">
+		delete from t_evm_activity_goods_bargain_price where `BARGAIN_ID` = #{bargainId}
+	</delete>
+	<insert id="insertActivityGoodsBargainPrice" parameterType="ActivityGoodsBargainPrice" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_activity_goods_bargain_price(`BARGAIN_ID`,`PRICE`,`USE_NUM`)
+		values 
+		(#{bargainId},#{price},#{useNum})
+	</insert>
+	
+	<select id="selectActivityFullgiftById" resultType="ActivityFullgift" parameterType="Integer">
+		select 
+		af.`ID` `id`,
+		af.`ACTIVITY_ID` `activityId`,
+		af.`GOODS_ID` `goodsId`,
+		af.`GOODS_NUM` `goodsNum`,
+		af.`FULL_PRICE` `fullPrice`,
+		af.`AMOUNT` `amount`,
+		af.`STORE_ID` `storeId`,
+		if(af.`STORE_ID` = 0,'小程序',s.`STORE_NAME`) `storeName`,
+		CONCAT(g.`GOODS_NAME`,gs.`SPEC_NAME`) `goodsName` 
+		from t_evm_activity_fullgift af 
+		left join t_evm_store s on s.`ID` = af.`STORE_ID` 
+		left join t_evm_activity a on a.`ID` = af.`ACTIVITY_ID`
+		left join t_evm_goods_spec gs on gs.`ID` = af.`GOODS_ID` 
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		where af.`ID` = #{id} 
+	</select>
+	<delete id="deleteActivityFullgift" parameterType="Integer">
+		delete from t_evm_activity_fullgift where `ID` = #{id}
+	</delete>
+	<insert id="insertActivityFullgift" parameterType="ActivityFullgift" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_activity_fullgift(`ACTIVITY_ID`,`GOODS_ID`,`GOODS_NUM`,`FULL_PRICE`,`AMOUNT`,`STORE_ID`)
+		values 
+		(#{activityId},#{goodsId},#{goodsNum},#{fullPrice},#{amount},#{storeId})
+	</insert>
+	<update id="updateActivityFullgift" parameterType="ActivityFullgift">
+		update t_evm_activity_fullgift set 
+		`STORE_ID` = #{storeId},
+		`GOODS_ID` = #{goodsId},
+		`GOODS_NUM` = #{goodsNum},
+		`FULL_PRICE` = #{fullPrice},
+		`AMOUNT` = `AMOUNT` + #{amount},
+		`LAST_MODIFIED_TIME` = NOW()
+		where `ID` = #{id} 
+	</update>
+</mapper>

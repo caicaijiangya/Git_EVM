@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.AnalyticsMapper">
+   
+   <select id="analyticsDataGrid" parameterType="Analytics" resultType="Analytics">
+   SELECT
+		DATE_FORMAT(a.REF_DATE, #{format}) refDate,
+		a.SESSION_CNT sessionCnt,
+		a.VISIT_PV visitPv,
+		a.VISIT_UV visitUv,
+		a.VISIT_UV_NEW visitUvNew,
+		a.STAY_TIME_UV stayTimeUv,
+		a.STAY_TIME_SESSION stayTimeSession,
+		a.VISIT_DEPTH visitDepth,
+		a.VISIT_TOTAL visitTotal,
+		a.SHARE_PV sharePv,
+		a.SHARE_UV shareUv,
+		a.SEARCH,
+		a.SHARE,
+		a.SESSION,
+		a.OTHER 
+	FROM
+		t_evm_analytics a 
+	<where>
+		<if test="startDate != null and startDate != ''">
+			and DATE_FORMAT(a.REF_DATE, #{format}) &gt;= #{startDate}
+		</if>
+		<if test="endDate != null and endDate != ''">
+			and DATE_FORMAT(a.REF_DATE, #{format}) &lt;= #{endDate}
+		</if>
+	</where>
+	group by DATE_FORMAT(a.REF_DATE, #{format}) 
+	order by a.REF_DATE desc 
+   </select>
+      
+   <select id="querySourceSum" parameterType="Analytics" resultType="Analytics" >
+    SELECT
+		sum(a.SESSION) session,
+		sum(a.SEARCH) search,
+		sum(a.SHARE) share,
+		sum(a.OTHER) other 
+	FROM
+		t_evm_analytics a 
+	<where>
+		<if test="startDate != null and startDate != ''">
+			DATE_FORMAT(a.REF_DATE, #{format}) &gt;= #{startDate}
+		</if>
+		<if test="endDate != null and endDate != ''">
+			and DATE_FORMAT(a.REF_DATE, #{format}) &lt;= #{endDate}
+		</if>
+	</where>
+   </select>
+   
+   <select id="selectVisitUvNew" parameterType="Analytics" resultType="Analytics">
+   SELECT
+		DATE_FORMAT(a.REF_DATE, #{format}) refDate,
+		a.VISIT_UV_NEW visitUvNew 
+	FROM
+		t_evm_analytics a 
+	<where>
+		<if test="startDate != null and startDate != ''">
+			and DATE_FORMAT(a.REF_DATE, #{format}) &gt;= #{startDate}
+		</if>
+		<if test="endDate != null and endDate != ''">
+			and DATE_FORMAT(a.REF_DATE, #{format}) &lt;= #{endDate}
+		</if>
+	</where>
+	group by DATE_FORMAT(a.REF_DATE, #{format}) 
+	order by a.REF_DATE desc
+   </select>
+   
+   <!-- 验证是否已经插入当日数据 -->
+   <select id="selectCountByRefDate" resultType="Integer" >
+   	select count(1) from t_evm_analytics_page where REF_DATE = #{refDate} 
+   </select>
+   
+   <!-- 批量插入 t_evm_analytics_page -->
+   <select id="insertPageBatch" >
+   	INSERT INTO t_evm_analytics_page 
+         (REF_DATE,PAGE_PATH,PAGE_VISIT_PV,PAGE_VISIT_UV,PAGE_STAYTIME_PV,ENTRYPAGE_PV,EXITPAGE_PV,PAGE_SHARE_PV,PAGE_SHARE_UV)
+    VALUES
+    <foreach collection ="list" item="visit" separator =",">
+         (#{visit.refDate}, #{visit.pagePath}, #{visit.pageVisitPv},#{visit.pageVisitUv},#{visit.pageStaytimePv}
+         ,#{visit.entrypagePv},#{visit.exitpagePv},#{visit.pageSharePv},#{visit.pageShareUv})
+    </foreach >
+   </select>
+   
+</mapper>

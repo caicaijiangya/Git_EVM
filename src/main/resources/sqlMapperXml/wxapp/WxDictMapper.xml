@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxDictMapper">
+	
+	<!-- 根据编码查询数据字典数据 -->
+   <select id="queryDictByCode" resultType="WxDict" parameterType="java.lang.String">
+      select 
+		a.`ID` `id`,
+		a.`DICT_CODE` `dictCode`,
+		a.`DICT_VALUE` `dictValue`,
+		a.`INDEXS` `indexs`
+		from t_evm_dict a
+		where a.`IS_DEL` = 0 
+		and a.`DICT_CODE` = #{code} 
+   </select>
+</mapper>

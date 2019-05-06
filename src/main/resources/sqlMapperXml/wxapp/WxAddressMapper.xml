@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxAddressMapper">
+	<sql id="storeColumn">
+		t.`id` `id`,
+      t.`OPEN_ID` `openId`,
+      t.`NAME` `name`,
+      t.`MOBILE_NO` `mobileNo`,
+      t.`IS_PREFERRED` `isPreferred`,
+      t.`DETAIL_ADDRESS` `addressDetail`,
+      t.`PROVINCE` `province`,
+      t.`CITY` `city`,
+      t.`AREA` `area`,
+      a0.`NAME` `provinceName`,
+      a1.`NAME` `cityName`,
+      a2.`NAME` `areaName`
+	</sql>
+	<!-- 根据ID查询收货地址详情 -->
+	<select id="queryAddressById" resultType="WxAddress" parameterType="java.lang.Integer">
+		select 
+			      <include refid="storeColumn" />
+			      from t_evm_address t 
+			      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+			      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+			      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+			      where t.`IS_DEL` = 0
+			      and t.`ID` = #{id} 
+	</select>
+	<!-- 根据我的默认收货地址 -->
+	<select id="queryAddressByOpenId" resultType="WxAddress" parameterType="java.lang.String">
+		select 
+			      <include refid="storeColumn" />
+			      from t_evm_address t 
+			      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+			      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+			      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+			      where t.`IS_DEL` = 0
+			      and t.`IS_PREFERRED` = 1 
+			      and t.open_id = #{openId}
+			      limit 1
+	</select>
+   <!-- 查询我的收货地址 -->
+   <select id="queryAddressMy" resultType="WxAddress" parameterType="PagingDto">
+      SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+			      <include refid="storeColumn" />
+			      from t_evm_address t 
+			      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+			      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+			      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+			      where t.`IS_DEL` = 0
+			      and t.`OPEN_ID` = #{openId} 
+			      order by t.`IS_PREFERRED`, t.`CREATED_TIME` desc
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+   </select>
+   
+<!-- 查询我的收货地址pjf -->
+   <select id="selectMyAddress" resultType="WxAddress" parameterType="PagingDto">
+      SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+			      <include refid="storeColumn" />
+			      from t_evm_address t 
+			      left join t_evm_area a0 on a0.`ID` = t.`PROVINCE`
+			      left join t_evm_area a1 on a1.`ID` = t.`CITY`
+			      left join t_evm_area a2 on a2.`ID` = t.`AREA`
+			      where t.`IS_DEL` = 0
+			      and t.`OPEN_ID` = #{openId} 
+			      order by t.`IS_PREFERRED`, t.`CREATED_TIME` desc
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+   </select>
+   
+<!-- 删除我的地址 -->
+	<update id="delMyAddress" parameterType="PagingDto">
+		update t_evm_address set is_del = 1 where id=#{id}
+	</update>
+
+<!-- 查询省份数据pjf -->
+   <select id="getProvincesList" resultType="WxArea" parameterType="PagingDto">
+		        select 
+			      	a.id,a.name
+			      from t_evm_area a 
+			      where a.`IS_DEL` = 0
+			      and a.`pid` = 0
+			      order by a.`CREATED_TIME` asc
+   </select>
+<!-- 查询地市数据pjf -->
+   <select id="getCitysList" resultType="WxArea" parameterType="PagingDto">
+		        select 
+			      	a.id,a.name
+			      from t_evm_area a 
+			      where a.`IS_DEL` = 0
+			      and a.`pid` = #{provinceId}
+			      order by a.`CREATED_TIME` asc
+   </select>   
+<!-- 查询区县数据pjf -->
+   <select id="getAreasList" resultType="WxArea" parameterType="PagingDto">
+		        select 
+			      	a.id,a.name
+			      from t_evm_area a 
+			      where a.`IS_DEL` = 0
+			      and a.`pid` = #{cityId}
+			      order by a.`CREATED_TIME` asc
+   </select> 
+<!-- 添加收货地址pjf -->
+   <insert id="addMyAddress" parameterType="PagingDto">
+		insert into t_evm_address(open_id,name,mobile_no,province,city,area,
+		detail_address,IS_PREFERRED) 
+		values(#{openId},#{name},#{mobileNo},#{provinceId},#{cityId},#{areaId},
+				#{address},#{isPreferred})
+   </insert>  
+<!-- 修改默认收货地址 -->   
+	<update id="editDefultAddress" parameterType="PagingDto">
+		update t_evm_address set IS_PREFERRED=0 where is_del=0 and IS_PREFERRED=1
+			and open_id=#{openId}
+	</update> 
+<!-- 根据Id获取地址详情 -->
+<select id="getAddressById" parameterType="PagingDto" resultType="WxAddress">
+	select 
+		a.id,a.mobile_no mobileNo,a.detail_address addressDetail,a.province,
+		a.city,a.area,
+		a.IS_PREFERRED isPreferred,a.`name` name,ar1.`name` provinceName,
+		ar2.`name` cityName,ar3.`name` areaName
+	from t_evm_address a
+	left join t_evm_wx_user u on u.open_id = a.open_id
+	left join t_evm_area ar1 on ar1.id = a.province
+	left join t_evm_area ar2 on ar2.id = a.city
+	left join t_evm_area ar3 on ar3.id = a.area
+	where a.id=#{addressId}	
+</select>	
+
+<update id="editMyAddress" parameterType="PagingDto">
+	update t_evm_address set name=#{name},detail_address=#{address},mobile_no=#{mobileNo},
+		province=#{provinceId},city=#{cityId},area=#{areaId},IS_PREFERRED=#{isPreferred}
+		where id=#{id}
+</update>	    
+</mapper>

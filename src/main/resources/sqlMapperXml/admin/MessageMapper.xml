@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.MessageMapper">
+	<select id="selectDataGrid" resultType="Message" parameterType="Message">
+        SELECT
+            m.id,
+            s.store_name storeName,
+            u.nick_name nickName,
+            o.order_no orderNo,
+            m.title,
+            m.contents,
+            m.type,
+            m.nums,
+            m.created_time createdTime
+        FROM
+           t_evm_message m
+        LEFT JOIN
+        	t_evm_store s
+       	ON s.id = m.store_id
+       	LEFT JOIN 
+       		t_evm_wx_user u
+       	ON u.open_id = m.open_id
+       	LEFT JOIN 
+       		t_evm_order o
+       	ON	o.id = m.order_id		 	   	    
+        WHERE
+            m.is_del = 0
+            <if test="storeName !=null and storeName!=''">
+            	and (s.store_name like CONCAT('%',#{storeName},'%')
+            	or u.nick_name like CONCAT('%',#{storeName},'%')
+            	or m.title like CONCAT('%',#{storeName},'%')
+            	or m.contents like CONCAT('%',#{storeName},'%')
+            	or o.order_no like CONCAT('%',#{storeName},'%'))
+            </if>
+            <if test="type!=null">
+            	and	m.type=#{type}
+            </if>
+        order by m.ID desc    
+    </select>
+    <update id="updateMessageById" parameterType="Message">
+    	update t_evm_message set is_del = 1 where id=#{id}
+    </update>
+    
+ <!-- 查看消息通知详情 -->
+ <select id="queryMessageDetail" resultType="Message" parameterType="Message">
+        SELECT
+           	mr.id,
+            u.nick_name nickName,
+            u.user_type userType,
+            mr.is_read isRead
+        FROM
+           t_evm_message_reveice mr
+        LEFT JOIN
+        	t_evm_wx_user u
+       	ON u.open_id = mr.open_id
+        WHERE
+            mr.is_del = 0
+            and mr.msg_id=#{id}
+            <if test="nickName !=null and nickName!=''">
+            	and (u.nick_name like CONCAT('%',#{nickName},'%'))
+            </if>
+            <if test="userType!=null">
+            	and	u.user_type=#{userType}
+            </if>
+            <if test="isRead!=null">
+            	and	mr.is_read=#{isRead}
+            </if>
+        order by mr.ID desc    
+    </select>
+</mapper>

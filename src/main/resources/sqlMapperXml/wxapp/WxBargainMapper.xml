@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxBargainMapper">
+	<resultMap type="WxBargainGoods" id="bargain">
+		<id column="id" property="id"/>
+		<result column="activityId" property="activityId"/>
+		<result column="goodsId" property="goodsId"/>
+		<result column="specId" property="specId"/>
+		<result column="joinPrice" property="joinPrice"/>
+		<result column="joinNum" property="joinNum"/>
+		<result column="qrCode" property="qrCode"/>
+		<result column="startTime" property="startTime"/>
+		<result column="endTime" property="endTime"/>
+		<result column="status" property="status"/>
+		<result column="storeId" property="storeId"/>
+		<result column="bargainType" property="bargainType"/>
+		<result column="userName" property="userName"/>
+		<result column="headImgUrl" property="headImgUrl"/>
+		<result column="goodsName" property="goodsName"/>
+		<result column="goodsPrice" property="goodsPrice"/>
+		<result column="goodsImages" property="goodsImages"/>
+		<result column="classifyId" property="classifyId"/>
+		<result column="openId" property="openId"/>
+		<collection property="details"  column="id" ofType="WxBargainGoodsDetail" javaType="ArrayList" select="queryBargainDetail"></collection>
+		<collection property="ladderList"  column="goodsBargainId" ofType="WxActivityGoodsBargainLadder" javaType="ArrayList" select="queryActivityGoodsBargainLadder"></collection>
+	</resultMap>
+	
+	<resultMap type="WxActivityGoods" id="activityGoods">
+		<id column="id" property="id"/>
+		<result column="activityGoodsId" property="activityGoodsId"/>
+		<result column="activityType" property="activityType"/>
+		<result column="activityAmount" property="activityAmount"/>
+		<result column="activityPrice" property="activityPrice"/>
+		<result column="buyNum" property="buyNum"/>
+		<result column="storeId" property="storeId"/>
+		<association property="bargain" column="activityGoodsId" javaType="WxActivityGoodsBargain" select="queryActivityGoodsBargain"></association>
+	</resultMap>
+	<!-- 查询砍价活动Id -->
+	<select id="queryBargainById" resultMap="bargain" parameterType="PagingDto">
+		select 
+		bg.`ID` `id`,
+		bg.`ACTIVITY_ID` `activityId`,
+		bg.`GOODS_ID` `specId`,
+		g.`ID` `goodsId`,
+		bg.`JOIN_PRICE` `joinPrice`,
+		bg.`QR_CODE` `qrCode`,
+		(select count(bgd1.`ID`) from t_evm_bargain_goods_detail bgd1 where bgd1.`BARGAIN_ID` = bg.`ID` and bgd1.`IS_DEL` = 0 and bgd1.`STATUS` = 1) `joinNum`,
+		DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') `startTime`,
+		DATE_FORMAT(bg.`END_TIME`, '%Y-%m-%d %H:%i:%s') `endTime`,
+		bg.`STATUS` `status`,
+		bg.`STORE_ID` `storeId`,
+		agb.`ID` `goodsBargainId`,
+		agb.`BARGAIN_TYPE` `bargainType`,
+		ag.`ACTIVITY_PRICE` `activityPrice`,
+		if(NOW() BETWEEN bg.`START_TIME` and bg.`END_TIME` ,0,1) `isDel`,
+		bgd.`OPEN_ID` `openId`,
+		u.`NICK_NAME` `userName`,
+		u.`HEAD_IMG_URL` `headImgUrl`,
+		CONCAT(g.`GOODS_NAME`,gs.`SPEC_NAME`) `goodsName`,
+		if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`,
+		sf.`FILE_PATH` `goodsImages`,
+		(select GROUP_CONCAT(gcdz.`CLASSIFY_ID`) from t_evm_goods_classify_dz gcdz where gcdz.`GOODS_ID` = g.`ID`) `classifyId`
+		from t_evm_bargain_goods bg 
+		left join t_evm_activity a on a.`ID` = bg.`ACTIVITY_ID`
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = bg.`ACTIVITY_ID` and ag.`GOODS_ID` = bg.`GOODS_ID` and ag.`STORE_ID` = bg.`STORE_ID` and ag.`IS_DEL` = 0
+		left join t_evm_activity_goods_bargain agb on agb.`ACTIVITY_GOODS_ID` = ag.`ID` 
+		left join t_evm_bargain_goods_detail bgd on bgd.`BARGAIN_ID` = bg.`ID` and bgd.`IS_BARGAIN` = 0
+		left join t_evm_wx_user u on u.`OPEN_ID` = bgd.`OPEN_ID` 
+		left join t_evm_goods_spec gs on gs.`ID` = bg.`GOODS_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = bg.`GOODS_ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 9 and sf.`SMALL_TYPE` = 0
+		where bg.`IS_DEL` = 0 and bg.`ID` = #{id} and a.`IS_DEL` = 0 and a.`STATUS` = 1
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME`
+	</select>
+	<select id="queryBargainDetail" resultType="WxBargainGoodsDetail" parameterType="Integer">
+		select 
+		bgd.`ID` `id`,
+		bgd.`BARGAIN_ID` `bargainId`,
+		bgd.`OPEN_ID` `openId`,
+		bgd.`PRICE` `price`,
+		bgd.`IS_BARGAIN` `isBargain`,
+		bgd.`STATUS` `status`,
+		u.`NICK_NAME` `userName`,
+		u.`HEAD_IMG_URL` `headImgUrl`
+		from t_evm_bargain_goods_detail bgd
+		left join t_evm_wx_user u on u.`OPEN_ID` = bgd.`OPEN_ID` 
+		where bgd.`IS_DEL` = 0 and bgd.`STATUS` = 1 and bgd.`BARGAIN_ID` = #{id} 
+		order by bgd.`CREATED_TIME` ASC 
+	</select>
+	<select id="queryActivityGoodsBargainLadder" resultType="WxActivityGoodsBargainLadder" parameterType="Integer">
+		select 
+		g.`ID` `goodsId`,
+		agbl.`GOODS_ID` `specId`,
+		agbl.`FULL_NUM` `fullNum`,
+		agbl.`GOODS_NAME` `goodsName`,
+		agbl.`GOODS_NUM` `goodsNum`  
+		from t_evm_activity_goods_bargain_ladder agbl
+		left join t_evm_goods_spec gs on gs.`ID` = agbl.`GOODS_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		where agbl.`BARGAIN_ID` = #{id} 
+	</select>
+	
+	<sql id="Base_Column_012">
+        and bg.`IS_DEL` = 0 
+		and bg.`ACTIVITY_ID` = #{activityId} 
+		and bg.`GOODS_ID` = #{goodsId} 
+		and bgd.`OPEN_ID` = #{openId} 
+		and bgd.`IS_BARGAIN` = 0
+    </sql>
+	<!-- 根据不同状态查询对应ID -->
+	<select id="queryBargainStatusById" resultType="Integer" parameterType="PagingDto">
+		select bg.`ID` from t_evm_bargain_goods bg 
+		left join t_evm_bargain_goods_detail bgd on bgd.`BARGAIN_ID` = bg.`ID` 
+		where bg.`STATUS` = #{status} 
+		and bg.`IS_DEL` = 0 
+		and bg.`ACTIVITY_ID` = #{activityId} 
+		and bg.`GOODS_ID` = #{goodsId} 
+		<if test="storeId != null">
+			and bg.`STORE_ID` = #{storeId}
+		</if>
+		and bgd.`OPEN_ID` = #{openId} 
+		and bgd.`IS_BARGAIN` = 0
+		<if test="status == 0">
+			and NOW() BETWEEN bg.`START_TIME` and bg.`END_TIME` 
+		</if>
+	</select>
+	
+	<!-- 查询已砍价数量 -->
+	<select id="queryBargainStatus" resultType="Integer" parameterType="PagingDto">
+		select count(bg.`ID`) from t_evm_bargain_goods bg 
+		left join t_evm_bargain_goods_detail bgd on bgd.`BARGAIN_ID` = bg.`ID` 
+		where bg.`STATUS` = 2 
+		and bg.`IS_DEL` = 0 
+		and bg.`ACTIVITY_ID` = #{activityId} 
+		and bg.`GOODS_ID` = #{goodsId} 
+		and bg.`STORE_ID` = #{storeId}
+		and bgd.`OPEN_ID` = #{openId} 
+		and bgd.`IS_BARGAIN` = 0
+	</select>
+	
+	
+	<!-- 查询活动 -->
+	<select id="selectActivityById" resultMap="activityGoods" parameterType="Integer">
+		select 
+		ag.`ID` `activityGoodsId`,
+		a.`ACTIVITY_TYPE` `activityType`,
+		ag.`ACTIVITY_AMOUNT` `activityAmount`,
+		ag.`ACTIVITY_PRICE` `activityPrice`,
+		ag.`BUY_NUM` `buyNum`,
+		ag.`STORE_ID` `storeId`,
+		if(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice`
+		from t_evm_activity a 
+		left join t_evm_activity_goods ag on ag.`ACTIVITY_ID` = a.`ID`
+		left join t_evm_goods_spec gs on gs.`ID` = ag.`GOODS_ID`
+		left join t_evm_goods g on g.`ID` = gs.`GOODS_ID`
+		where a.`IS_DEL` = 0 
+		and ag.`IS_DEL` = 0 
+		and a.`ID` = #{id} and ag.`GOODS_ID` = #{goodsId} 
+		<if test="storeId != null">
+			and ag.`STORE_ID` = #{storeId}
+		</if>
+		and a.`STATUS` = 1 
+		and NOW() BETWEEN a.`ACTIVITY_START_TIME` and a.`ACTIVITY_END_TIME` 
+		limit 1
+	</select>
+	<resultMap type="WxActivityGoodsBargain" id="activityGoodsBargain">
+		<id column="id" property="id"/>
+		<result column="activityGoodsId" property="activityGoodsId"/>
+		<result column="bargainNum" property="bargainNum"/>
+		<result column="helpBargainNum" property="helpBargainNum"/>
+		<result column="givingNum" property="givingNum"/>
+		<result column="price" property="price"/>
+		<result column="couponId" property="couponId"/>
+		<result column="couponMoney" property="couponMoney"/>
+		<result column="integral" property="integral"/>
+		<result column="type" property="type"/>
+		<result column="bargainType" property="bargainType"/>
+		<result column="time" property="time"/>
+		<result column="image0" property="image0"/>
+		<result column="image1" property="image1"/>
+		<result column="image2" property="image2"/>
+		<collection property="ladderList"  column="id" ofType="WxActivityGoodsBargainLadder" javaType="ArrayList" select="queryActivityGoodsBargainLadder"></collection>
+		<collection property="priceList"  column="id" ofType="WxActivityGoodsBargainPrice" javaType="ArrayList" select="queryActivityGoodsBargainPrice"></collection>
+	</resultMap>
+	<select id="queryActivityGoodsBargain" resultMap="activityGoodsBargain" parameterType="Integer">
+		select 
+		agb.`ID` `id`,
+		agb.`ACTIVITY_GOODS_ID` `activityGoodsId`,
+		agb.`BARGAIN_NUM` `bargainNum`,
+		agb.`HELP_BARGAIN_NUM` `helpBargainNum`,
+		agb.`GIVING_NUM` `givingNum`,
+		agb.`PRICE` `price`,
+		agb.`COUPON_ID` `couponId`,
+		c.`MONEY` `couponMoney`,
+		agb.`INTEGRAL` `integral`,
+		agb.`TYPE` `type`,
+		agb.`BARGAIN_TYPE` `bargainType`,
+		agb.`TIME` `time`,
+		sf0.`FILE_PATH` `image0`,
+		sf1.`FILE_PATH` `image1`,
+		sf2.`FILE_PATH` `image2`
+		from t_evm_activity_goods_bargain agb 
+		left join t_evm_static_files sf0 on sf0.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf0.`FILE_TYPE` = 0 and sf0.`BIG_TYPE` = 8 and sf0.`SMALL_TYPE` = 0
+		left join t_evm_static_files sf1 on sf1.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf1.`FILE_TYPE` = 0 and sf1.`BIG_TYPE` = 8 and sf1.`SMALL_TYPE` = 1
+		left join t_evm_static_files sf2 on sf2.`RELATION_ID` = agb.`ACTIVITY_GOODS_ID` and sf2.`FILE_TYPE` = 0 and sf2.`BIG_TYPE` = 8 and sf2.`SMALL_TYPE` = 2
+		left join t_evm_coupon c on c.`ID` = agb.`COUPON_ID` 
+		where agb.`ACTIVITY_GOODS_ID` = #{id}
+	</select>
+	<select id="queryActivityGoodsBargainLadder" resultType="WxActivityGoodsBargainLadder" parameterType="Integer">
+		select 
+		agbl.`BARGAIN_ID` `bargainId`,
+		agbl.`GOODS_ID` `goodsId`,
+		agbl.`FULL_NUM` `fullNum`,
+		agbl.`GOODS_NAME` `goodsNum` 
+		from t_evm_activity_goods_bargain_ladder agbl 
+		where agbl.`BARGAIN_ID` = #{id}
+		order by agbl.`FULL_NUM` asc
+	</select>
+	<select id="queryActivityGoodsBargainPrice" resultType="WxActivityGoodsBargainPrice" parameterType="Integer">
+		select 
+		agbp.`BARGAIN_ID` `bargainId`,
+		agbp.`PRICE` `price`,
+		agbp.`USE_NUM` `useNum`
+		from t_evm_activity_goods_bargain_price agbp 
+		where agbp.`BARGAIN_ID` = #{id}
+		order by agbp.`PRICE` asc
+	</select>
+	<!-- 是否已助砍 -->
+	<select id="queryBargainGoodsDetailCount" resultType="Integer" parameterType="PagingDto">
+		select 
+		count(bgd.`ID`) 
+		from t_evm_bargain_goods_detail bgd 
+		where bgd.`IS_DEL` = 0 and bgd.`STATUS` = 1 and bgd.`BARGAIN_ID` = #{id} and bgd.`OPEN_ID` = #{openId}
+	</select>
+	
+	<!-- 查看我已助力次数 -->
+	<select id="queryBargainGoodsCount" resultType="Integer" parameterType="PagingDto">
+		select 
+		count(bgd.`ID`) 
+		from t_evm_bargain_goods bg 
+		left join t_evm_bargain_goods_detail bgd on bgd.`BARGAIN_ID` = bg.`ID` 
+		where bg.`IS_DEL` = 0 and bgd.`IS_DEL` = 0 
+		and bgd.`STATUS` = 1  
+		and bgd.`IS_BARGAIN` = 1 
+		and bg.`ACTIVITY_ID` = #{activityId}
+		and bg.`GOODS_ID` = #{goodsId}
+		and bgd.`OPEN_ID` = #{openId}
+	</select>
+	<resultMap type="WxBargainGoods" id="bargain1">
+		<id column="id" property="id"/>
+		<result column="activityId" property="activityId"/>
+		<result column="goodsId" property="goodsId"/>
+		<result column="joinPrice" property="joinPrice"/>
+		<result column="storeId" property="storeId"/>
+		<collection property="details"  column="id" ofType="WxBargainGoodsDetail" javaType="ArrayList" select="queryBargainDetail"></collection>
+	</resultMap>
+	<!-- 查询活动ID，商品ID -->
+	<select id="queryBargainGoodsId" resultMap="bargain1" parameterType="PagingDto">
+		select 
+		bg.`ID` `id`,
+		bg.`ACTIVITY_ID` `activityId`,
+		bg.`GOODS_ID` `goodsId`,
+		bg.`JOIN_PRICE` `joinPrice`,
+		bg.`STORE_ID` `storeId`
+		from t_evm_bargain_goods bg 
+		where bg.`ID` = #{id} and bg.`STATUS` = 0
+	</select>
+	
+	
+	<!-- 查询已赠送次数 -->
+	<select id="queryBargainGoodsUserLogCount" resultType="Integer" parameterType="PagingDto">
+		select count(bgul.`ID`)
+		from t_evm_bargain_goods_user_log bgul 
+		where bgul.`IS_DEL` = 0 
+		and bgul.`ACTIVITY_ID` = #{activityId}
+		and bgul.`GOODS_ID` = #{goodsId}
+		and bgul.`OPEN_ID` = #{openId}
+	</select>
+	
+	
+	<select id="queryBargainGoodsById" resultType="WxBargainGoods" parameterType="Integer">
+		select 
+		bgd.`OPEN_ID`,
+		u.`NICK_NAME` `userName`,
+		u.`HEAD_IMG_URL` `headImgUrl`
+		from t_evm_bargain_goods bg 
+		left join t_evm_bargain_goods_detail bgd on bgd.`BARGAIN_ID` = bg.`ID` and bgd.`IS_BARGAIN` = 0 
+		left join t_evm_wx_user u on u.`OPEN_ID` = bgd.`OPEN_ID`
+		where bg.`ID` = #{id}
+	</select>
+	<!-- 查询未下单占有库存数量 -->
+	<select id="queryBargainGoodsAmountCount" resultType="Integer" parameterType="PagingDto">
+		select COUNT(bg.`ID`) 
+		from t_evm_bargain_goods bg
+		left join t_evm_bargain_goods_detail bgd on bgd.`BARGAIN_ID` = bg.`ID`
+		where bg.`IS_DEL` = 0 
+		and  bg.`ACTIVITY_ID` = #{activityId} and bg.`GOODS_ID` = #{goodsId} and bg.`STORE_ID` = #{storeId} 
+		and bgd.`IS_BARGAIN` = 0 
+		and bg.`STATUS` in (0,1) and NOW() BETWEEN bg.`START_TIME` and bg.`END_TIME`
+	</select>
+	
+	<!-- 修改 -->
+	<update id="updateBargainGoods" parameterType="WxBargainGoods">
+		update t_evm_bargain_goods set `JOIN_PRICE`=`JOIN_PRICE` + #{joinPrice}
+		<if test="status != null">
+			,`STATUS` = #{status} 
+		</if>
+		<if test="orderId != null">
+			,`ORDER_ID` = #{orderId} 
+		</if>
+		<if test="qrCode != null">
+			,`QR_CODE` = #{qrCode} 
+		</if>
+		 where `ID` = #{id} 
+	</update>
+	<update id="updateBargainGoodsOrderId" parameterType="Integer">
+		update t_evm_bargain_goods set `STATUS` = 1 where `ORDER_ID` = #{orderId} 
+	</update>
+	<insert id="insertBargainGoods" parameterType="WxBargainGoods" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_bargain_goods 
+		(`ACTIVITY_ID`,`GOODS_ID`,`JOIN_PRICE`,`START_TIME`,`END_TIME`,`STATUS`,`STORE_ID`)
+		values 
+		(#{activityId},#{goodsId},#{joinPrice},NOW(),DATE_ADD(NOW(),INTERVAL #{timeNum} HOUR),#{status},#{storeId})
+	</insert>
+	
+	<insert id="insertBargainGoodsDetail" parameterType="WxBargainGoodsDetail" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_bargain_goods_detail 
+		(`BARGAIN_ID`,`OPEN_ID`,`PRICE`,`IS_BARGAIN`)
+		values 
+		(#{bargainId},#{openId},#{price},#{isBargain})
+	</insert>
+	
+	<insert id="insertBargainGoodsUserLog" parameterType="WxBargainGoodsUserLog" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_bargain_goods_user_log 
+		(`ACTIVITY_ID`,`GOODS_ID`,`OPEN_ID`,`TYPE`,`VALUE`)
+		values 
+		(#{activityId},#{goodsId},#{openId},#{type},#{value})
+	</insert>
+</mapper>

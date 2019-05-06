@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.DataAnalysisChannelMapper">
+
+	<select id="selectOddDataGrid" resultType="java.util.Map" parameterType="DataAnalysisDto">
+		select 
+		DATE_FORMAT(o.`CREATED_TIME`, #{format}) `dateTime`,
+		SUM(IFNULL(od.`TOTAL_BALANCES`,0)) `totalBalances`,
+		SUM(IFNULL(o.`DISCOUNT_PRICE`,0) + IFNULL(op.`PRICE`,0)) `discoutPrice`,
+		SUM(IFNULL(ot.`BALANCES`,0)) `transBalances`,
+		SUM(IFNULL(od.`GOODS_NUMS`,0)) `transGoodsNum`,
+		COUNT(o.`ID`) `orderNum`,
+		IFNULL(oo.`USER_NUM`,0) `userNum`,
+		SUM(IFNULL(od.`GOODS_NUMS`,0)) / COUNT(o.`ID`) `userOddNum`,
+		SUM(IFNULL(ot.`BALANCES`,0)) / COUNT(o.`ID`) `userOddPrice`,
+		ROUND(SUM(IFNULL(ot.`BALANCES`,0)) / SUM(IFNULL(o.`TOTAL_BALANCES`,0)),2) `discount`,
+		SUM(IFNULL(rr.`GOODS_NUMS`,0)) `refundNum`,
+		SUM(IFNULL(ot.`REFUND_BALANCES`,0)) `refundBalances`,
+		CONCAT(ROUND((SUM(IFNULL(rr.`GOODS_NUMS`,0)) / SUM(IFNULL(od.`GOODS_NUMS`,0))) * 100,2),'%') `refundRate`
+		from t_evm_order o 
+		LEFT JOIN t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID`
+		LEFT JOIN (select op1.`ORDER_ID`,SUM(op1.`PRICE`) `PRICE` from t_evm_order_pre op1 GROUP BY op1.`ORDER_ID`) op on op.`ORDER_ID` = o.`ID`
+		LEFT JOIN (select od1.`ORDER_ID`,SUM(od1.`GOODS_NUMS`) `GOODS_NUMS`,SUM(gs.`GOODS_PRICE` * od1.`GOODS_NUMS`) `TOTAL_BALANCES` from t_evm_order_detail od1 left join t_evm_goods_spec gs on gs.`ID` = od1.`SPEC_ID` GROUP BY od1.`ORDER_ID`) od on od.`ORDER_ID` = o.`ID`
+		LEFT JOIN (select or1.`ORDER_ID`,COUNT(rd.`GOODS_NUMS`) `GOODS_NUMS` from t_evm_order_refund or1 LEFT JOIN t_evm_order_refund_detail rd on rd.`REFUND_ID` = or1.`ID` where or1.`IS_DEL` = 0 and or1.`STATUS` = 4 GROUP BY or1.`ORDER_ID`) rr on rr.`ORDER_ID` = o.`ID`
+		LEFT JOIN (select count(o2.`OPEN_ID`) `USER_NUM`,o2.`CREATED_TIME` from (
+			select o1.`OPEN_ID`,
+			DATE_FORMAT(o1.`CREATED_TIME`, #{format}) `CREATED_TIME` 
+			from t_evm_order o1 
+			where o1.`IS_DEL` = 0 and o1.`STATUS` = 6 
+			<if test="storeIds != null">
+				and o1.`STORE_ID` IN 
+				<foreach collection="storeIds" item="storeId" separator="," open="(" close=")">
+	            	#{storeId}
+	        	</foreach>
+			</if>
+			<if test="startTime != null and startTime != ''">
+				and DATE_FORMAT(o1.`CREATED_TIME`, #{format}) &gt;= #{startTime}
+			</if>
+			<if test="endTime != null and endTime != ''">
+				and DATE_FORMAT(o1.`CREATED_TIME`, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY o1.`OPEN_ID`,DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		) o2 GROUP BY o2.`CREATED_TIME`) oo on 1=1 and oo.`CREATED_TIME` = DATE_FORMAT(o.`CREATED_TIME`, #{format})  
+		where o.`IS_DEL` = 0 and o.`STATUS` = 6 
+		<if test="storeIds != null">
+			and o.`STORE_ID` IN 
+			<foreach collection="storeIds" item="storeId" separator="," open="(" close=")">
+            	#{storeId}
+        	</foreach>
+		</if>
+		<if test="startTime != null and startTime != ''">
+			and DATE_FORMAT(o.`CREATED_TIME`, #{format}) &gt;= #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and DATE_FORMAT(o.`CREATED_TIME`, #{format}) &lt;= #{endTime}
+		</if>
+		GROUP BY DATE_FORMAT(o.`CREATED_TIME`, #{format}) 
+	</select>
+	
+	<select id="selectMoreDataGrid" resultType="java.util.Map" parameterType="DataAnalysisDto">
+		select 
+		DATE_FORMAT(o.`CREATED_TIME`, #{format}) `dateTime`,
+		ifnull(fans.`FANS`,0) `fans`,
+		ifnull(fans.`NEW_FANS`,0) `newFans`,
+		IF(o.`STORE_ID` = 0,'小程序',s.`STORE_NAME`) `storeName`,
+		SUM(ot.`BALANCES`) `balances`,
+		CONCAT(ROUND((SUM(ot.`BALANCES`) / tot.`BALANCES`)*100,2),'%') `balancesRate` 
+		from t_evm_order o 
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+		left join t_evm_store s on s.`ID` = o.`STORE_ID` 
+		left join (
+			select 
+			COUNT(*) `NEW_FANS`, 
+			(select COUNT(*) from t_evm_wx_user u1 where u1.`IS_AUTH` = 1 and DATE_FORMAT(u1.`CREATED_TIME`, #{format}) &lt;= DATE_FORMAT(u.`CREATED_TIME`, #{format})) `FANS`,
+			DATE_FORMAT(u.`CREATED_TIME`, #{format}) `CREATED_TIME` 
+			from t_evm_wx_user u 
+			where u.`IS_AUTH` = 1 
+			GROUP BY DATE_FORMAT(u.`CREATED_TIME`, #{format})
+		) fans on fans.`CREATED_TIME` = DATE_FORMAT(o.`CREATED_TIME`, #{format}) 
+		left join (
+			select SUM(ot1.`BALANCES`) `BALANCES`,
+			DATE_FORMAT(o1.`CREATED_TIME`, #{format}) `CREATED_TIME` 
+			from t_evm_order o1 
+			left join t_evm_order_trans ot1 on ot1.`ORDER_ID` = o1.`ID` 
+			where o1.`IS_DEL` = 0 and o1.`STATUS` = 6
+			<if test="startTime != null and startTime != ''">
+				and DATE_FORMAT(o1.`CREATED_TIME`, #{format}) &gt;= #{startTime}
+			</if>
+			<if test="endTime != null and endTime != ''">
+				and DATE_FORMAT(o1.`CREATED_TIME`, #{format}) &lt;= #{endTime}
+			</if>
+			GROUP BY DATE_FORMAT(o1.`CREATED_TIME`, #{format})
+		) tot on 1=1 and tot.`CREATED_TIME` = DATE_FORMAT(o.`CREATED_TIME`, #{format})  
+		where o.`IS_DEL` = 0 and o.`STATUS` = 6 
+		<if test="storeIds != null">
+			and o.`STORE_ID` IN 
+			<foreach collection="storeIds" item="storeId" separator="," open="(" close=")">
+            	#{storeId}
+        	</foreach>
+		</if>
+		<if test="startTime != null and startTime != ''">
+			and DATE_FORMAT(o.`CREATED_TIME`, #{format}) &gt;= #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and DATE_FORMAT(o.`CREATED_TIME`, #{format}) &lt;= #{endTime}
+		</if>
+		GROUP BY DATE_FORMAT(o.`CREATED_TIME`, #{format}) ,o.`STORE_ID`
+	</select>
+	
+	
+	<select id="selectMoreRateDataGrid" resultType="java.util.Map" parameterType="DataAnalysisDto">
+		select 
+		IF(o.`STORE_ID` = 0,'小程序',s.`STORE_NAME`) `storeName`,
+		SUM(ot.`BALANCES`) `balances`,
+		ROUND((SUM(ot.`BALANCES`) / tot.`BALANCES`)*100,2) `balancesRate` 
+		from t_evm_order o 
+		left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+		left join t_evm_store s on s.`ID` = o.`STORE_ID` 
+		left join (
+			select SUM(ot1.`BALANCES`) `BALANCES`
+			from t_evm_order o1 
+			left join t_evm_order_trans ot1 on ot1.`ORDER_ID` = o1.`ID` 
+			where o1.`IS_DEL` = 0 and o1.`STATUS` = 6
+			<if test="startTime != null and startTime != ''">
+				and DATE_FORMAT(o1.`CREATED_TIME`, #{format}) &gt;= #{startTime}
+			</if>
+			<if test="endTime != null and endTime != ''">
+				and DATE_FORMAT(o1.`CREATED_TIME`, #{format}) &lt;= #{endTime}
+			</if>
+		) tot on 1=1 
+		where o.`IS_DEL` = 0 and o.`STATUS` = 6 
+		<if test="storeIds != null">
+			and o.`STORE_ID` IN 
+			<foreach collection="storeIds" item="storeId" separator="," open="(" close=")">
+            	#{storeId}
+        	</foreach>
+		</if>
+		<if test="startTime != null and startTime != ''">
+			and DATE_FORMAT(o.`CREATED_TIME`, #{format}) &gt;= #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and DATE_FORMAT(o.`CREATED_TIME`, #{format}) &lt;= #{endTime}
+		</if>
+		GROUP BY o.`STORE_ID`
+	</select>
+</mapper>

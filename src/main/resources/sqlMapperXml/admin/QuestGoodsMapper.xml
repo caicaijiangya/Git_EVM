@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.QuestGoodsMapper">
+<!-- 推荐商品列表 -->
+	<select id="selectDataGrid" parameterType="QuestGoods" resultType="QuestGoods">
+		select qg.id,qg.classify_id classifyId, gc.name, g.goods_name goodsName, qg.seq, qg.nail,
+				qg.created_time createdTime
+		from t_evm_quest_goods qg
+		left join t_evm_goods_classify gc on gc.id=qg.CLASSIFY_ID
+		left join t_evm_goods g	on g.id=qg.goods_id	
+		where qg.is_del=0
+		<if test="name!=null and name!=''">
+			and (gc.name like CONCAT('%',#{name},'%')
+				or g.goods_name like CONCAT('%',#{name},'%')
+				)
+		</if>
+		<if test="nail !=null">
+			and qg.nail=#{nail}
+		</if>
+		order by qg.id desc
+	</select>
+	
+	<select id="queryGoodsByClassifyId" parameterType="java.lang.Integer" resultType="Goods">
+		select 
+		g.`ID` `id`,
+		g.`GOODS_NAME` goodsName 
+		from t_evm_goods g
+		left join t_evm_goods_classify_dz gcdz on gcdz.`GOODS_ID` = g.`ID` 
+		where gcdz.`CLASSIFY_ID` = #{classifyId}
+		GROUP BY g.`ID`
+	</select>
+</mapper>

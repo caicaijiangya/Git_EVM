@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxIntegralMapper">
+	<resultMap type="WxIntegralGoods" id="integralGoods">
+		<id column="id" property="id"/>
+		<result column="specId" property="specId"/>
+		<result column="goodsName" property="goodsName"/>
+		<result column="goodsImages" property="goodsImages"/>
+		<result column="goodsVideo" property="goodsVideo"/>
+		<result column="goodsDesc" property="goodsDesc"/>
+		<result column="goodsPrice" property="goodsPrice"/>
+		<result column="goodsPrice1" property="goodsPrice1"/>
+		<result column="goodsAmount" property="goodsAmount"/>
+		<result column="type" property="type"/>
+		<result column="buyNum" property="buyNum"/>
+		<collection property="advertImgs"  column="specId" ofType="WxStaticFile" javaType="ArrayList" select="queryAdvertImageList"></collection>
+	</resultMap>
+	
+	<!-- 优惠券列表 -->
+	<select id="queryCouponList" resultType="WxCoupon" parameterType="PagingDto">
+		SELECT
+		c.`ID` `id`,
+		c.`TITLE` `title`,
+		c.`MONEY` `money`,
+		c.`FULL_MONEY` `fullMoney`,
+		c.`COUPON_TYPE` `couponType`,
+		c.`COUPON_DESC` `couponDesc`,
+		date_format(c.`START_TIME`,'%Y.%m.%d') `startTime`,
+		date_format(c.`END_TIME`,'%Y.%m.%d') `endTime`,
+		ig.`GOODS_PRICE` `goodsPrice`,
+		ig.`GOODS_AMOUNT` `goodsAmount`
+		from t_evm_integral_goods ig 
+		LEFT JOIN t_evm_coupon c on c.`ID` = ig.`GOODS_ID` 
+		WHERE ig.`IS_DEL` = 0 and c.`IS_DEL` = 0 and ig.`TYPE`= 1
+		and NOW() BETWEEN ig.`START_TIME` and ig.`END_TIME`
+	</select>	
+	<!-- 商品列表 -->
+	<select id="queryGoodsList" resultType="WxIntegralGoods" parameterType="PagingDto">
+		SELECT
+		gs.`ID` `id`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		ig.`GOODS_PRICE` `goodsPrice`,
+		IF(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice1`,
+		ig.`GOODS_AMOUNT` `goodsAmount`
+		from t_evm_integral_goods ig 
+		left join t_evm_goods_spec gs on gs.`ID` = ig.`GOODS_ID`
+		LEFT JOIN t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 6 and sf.`SMALL_TYPE` = 0
+		WHERE ig.`IS_DEL` = 0 and g.`STATUS` = 1 and ig.`TYPE`= 0
+		and NOW() BETWEEN ig.`START_TIME` and ig.`END_TIME`
+	</select>	
+	<!-- 优惠券详情 -->
+	<select id="queryCouponDetail" resultType="WxCoupon" parameterType="PagingDto">
+		SELECT
+		c.`ID` `id`,
+		c.`TITLE` `title`,
+		c.`MONEY` `money`,
+		c.`FULL_MONEY` `fullMoney`,
+		c.`COUPON_TYPE` `couponType`,
+		c.`COUPON_DESC` `couponDesc`,
+		date_format(c.`START_TIME`,'%Y.%m.%d') `startTime`,
+		date_format(c.`END_TIME`,'%Y.%m.%d') `endTime`,
+		ig.`GOODS_PRICE` `goodsPrice`,
+		ig.`GOODS_AMOUNT` `goodsAmount`
+		from t_evm_integral_goods ig 
+		LEFT JOIN t_evm_coupon c on c.`ID` = ig.`GOODS_ID` 
+		WHERE ig.`IS_DEL` = 0 and c.`IS_DEL` = 0 and ig.`GOODS_ID` = #{goodsId} and ig.`TYPE`= #{type}
+		and NOW() BETWEEN ig.`START_TIME` and ig.`END_TIME`
+	</select>	
+	<!-- 商品详情 -->
+	<select id="queryGoodsDetail" resultMap="integralGoods" parameterType="PagingDto">
+		SELECT
+		g.`ID` `id`,
+		gs.`ID` `specId`,
+		g.`GOODS_NAME` `goodsName`,
+		sf.`FILE_PATH` `goodsImages`,
+		g.`GOODS_DESC` `goodsDesc`,
+		ig.`GOODS_PRICE` `goodsPrice`,
+		ig.`BUY_NUM` `buyNum`,
+		IF(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`) `goodsPrice1`,
+		ig.`GOODS_AMOUNT` `goodsAmount`
+		from t_evm_integral_goods ig 
+		left join t_evm_goods_spec gs on gs.`ID` = ig.`GOODS_ID`
+		LEFT JOIN t_evm_goods g on g.`ID` = gs.`GOODS_ID` 
+		LEFT JOIN t_evm_static_files sf on sf.`IS_DEL` = 0 and sf.`RELATION_ID` = gs.`ID` and sf.`FILE_TYPE` = 0 and sf.`BIG_TYPE` = 6 and sf.`SMALL_TYPE` = 0
+		WHERE ig.`IS_DEL` = 0 and g.`STATUS` = 1 and ig.`GOODS_ID` = #{goodsId} and ig.`TYPE`= #{type}
+		and NOW() BETWEEN ig.`START_TIME` and ig.`END_TIME`
+	</select>	
+	<select id="queryAdvertImageList" resultType="WxStaticFile" parameterType="Integer">
+		select sf.`ID` `id`,sf.`FILE_PATH` `filePath` 
+		from t_evm_static_files sf 
+		where sf.`IS_DEL` = 0 
+		and sf.`RELATION_ID` = #{id} 
+		and sf.`FILE_TYPE` = 0 
+		and sf.`BIG_TYPE` = 6 
+		and sf.`SMALL_TYPE` = 1
+	</select>
+	<select id="queryGoodsAmount" resultType="WxIntegralGoods" parameterType="String">
+		select 
+		ig.`GOODS_AMOUNT` `goodsAmount`,
+		ig.`BUY_NUM` `buyNum`,
+		(select COUNT(*) 
+			from t_evm_order o 
+			LEFT JOIN t_evm_order_detail od on od.`ORDER_ID` = o.`ID` 
+			where o.`IS_DEL` = 0 
+			and o.`ORDER_TYPE` = 4 
+			and od.`GOODS_ID` = ig.`GOODS_ID`
+			and o.`STATUS` not in (4,5) 
+			and o.`OPEN_ID` = #{openId}
+		) `orderNum`,
+		(
+			select COUNT(*)  from t_evm_wx_user_coupon uc where uc.`IS_DEL` = 0 and uc.`SOURCE_TYPE` = 7 and uc.`COUPON_ID` = ig.`GOODS_ID` and uc.`OPEN_ID` = #{openId}
+		) `couponNum`
+		from t_evm_integral_goods ig where ig.`GOODS_ID` = #{goodsId} and ig.`TYPE`= #{type}
+	</select>
+	<select id="queryUserIntegral" resultType="Integer" parameterType="String">
+		select u.`INTEGRAL` from t_evm_wx_user u where u.`OPEN_ID` = #{openId} and u.`IS_INTEGRAL` = 0
+	</select>
+	
+	<!-- 商品库存 加减 -->
+	<update id="updateIntegralGoodsAmount" parameterType="Integer">
+		update t_evm_integral_goods set `GOODS_AMOUNT`=`GOODS_AMOUNT` + #{amount},`LAST_MODIFIED_TIME` = NOW() where `GOODS_ID` = #{id} and `TYPE` = #{type}
+	</update>
+	<!-- 用户积分  加减 -->
+	<update id="updateUserIntegral" parameterType="UserBean">
+		update t_evm_wx_user set 
+		`INTEGRAL`=`INTEGRAL` + #{integral},
+		<if test="integral lt 0 and isAuth == null">
+			`CON_INTEGRAL`=`CON_INTEGRAL` - #{integral},
+		</if>
+		`LAST_MODIFIED_TIME` = NOW() where `OPEN_ID` = #{openId}
+	</update>
+</mapper>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxKeeperIndexModelMapper">
+	
+<!-- 查询当前登录用户的权限 -->
+   <select id="queryIndexModel" resultType="WxKeeperIndexModel" parameterType="PagingDto">
+      SELECT
+      	m.id,
+		m.model_name modelName,
+		m.page_url pageUrl,
+		m.jump_type jumpType,
+		m.model_img modelImg
+	  FROM
+		t_evm_index_model m
+	  LEFT JOIN t_evm_model_user mu ON m.id = mu.model_id
+	  LEFT JOIN t_evm_wx_user u ON u.open_id = mu.open_id
+	  WHERE
+		m.IS_DEL = 0
+		and mu.is_del = 0
+	  	AND u.OPEN_ID = #{openId}
+	  order by m.seq asc	
+   </select>
+<!-- 新增店员权限-->
+    <insert id="addUserAuth" parameterType="WxModelUser" >
+    	INSERT INTO t_evm_model_user (`OPEN_ID`,`MODEL_ID`) 
+    	VALUES  
+    	(#{openId},#{modelId})
+    </insert>
+<!-- 取消店员权限 --> 
+	<delete id="delUserAuth" parameterType="WxModelUser">
+    	delete from t_evm_model_user  
+    	WHERE `open_id` = #{openId}
+    	and `model_id` = #{modelId}
+    </delete>   
+</mapper>

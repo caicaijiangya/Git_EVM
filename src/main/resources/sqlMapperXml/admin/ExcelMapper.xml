@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.ExcelMapper">
+
+	<resultMap type="WxOrder" id="orderList">
+		<id column="id" property="id"/>
+		<result column="orderNo" property="orderNo"/>
+		<result column="totalBalances" property="totalBalances"/>
+		<result column="orderStatus" property="orderStatus"/>
+		<result column="orderDesc" property="orderDesc"/>
+		<result column="userName" property="userName"/>
+		<result column="createTime" property="createTime"/>
+		<result column="note" property="note"/>
+		<association property="collage" column="id" javaType="WxCollageGoods" select="com.bluekjg.wxapp.mapper.WxOrderMapper.selectOrderCollageGoods"></association>
+		<association property="trans" column="id" javaType="WxOrderTrans" select="com.bluekjg.wxapp.mapper.WxOrderMapper.selectOrderTrans"></association>
+		<association property="address" column="id" javaType="WxOrderAddress" select="com.bluekjg.wxapp.mapper.WxOrderMapper.queryOrderAddress"></association>
+		<association property="store" column="storeId" javaType="WxStore" select="com.bluekjg.wxapp.mapper.WxOrderMapper.queryOrderStore"></association>
+		<collection property="details"  column="id" ofType="WxOrderDetail" javaType="ArrayList" select="com.bluekjg.wxapp.mapper.WxOrderMapper.queryOrderDetailList"></collection>
+	</resultMap>
+	
+	<!-- 查询物流订单列表 -->
+	<select id="queryOrderGuanyi" resultType="java.util.Map" parameterType="ExportDto">
+		select 
+		o.`ORDER_NO` `orderNo`,
+		ot.`TRANS_NO` `transNo`,
+		DATE_FORMAT(o.`LAST_MODIFIED_TIME`,'%Y-%m-%d') `createTime`,
+		IF(o.`STATUS` = 0,'待付款',IF(o.`STATUS` = 1,'待发货',IF(o.`STATUS` = 2,'待取货',IF(o.`STATUS` = 3,'待退款',IF(o.`STATUS` = 4,'已退款',IF(o.`STATUS` = 5,'订单取消',IF(o.`STATUS` = 6,'订单完成',IF(o.`STATUS` = 7,'退货待审核',IF(o.`STATUS` = 8,'退货待收货',''))))))))) `orderStatus`,
+		u.`USER_NAME` `userName`,		
+		ot.`BALANCES` `balances`,
+		DATE_FORMAT(o.`LAST_MODIFIED_TIME`,'%Y-%m-%d') `LastModifiedTime`,
+		o.`TOTAL_BALANCES` `totalBalances`,
+		IF(IFNULL(god.`GOODS_NAME`,'') = '',gog.`GOODS_NAME`,god.`GOODS_NAME`) `goodsName`,
+		IF(IFNULL(gsod.`GOODS_CODE`,'') = '',gsog.`GOODS_CODE`,gsod.`GOODS_CODE`) `goodsCode`,
+		IF(IFNULL(gsod.`GOODS_CODE`,'') = '','赠品','非赠品') `isGift`,
+		IF(IFNULL(gsod.`SPEC_NAME`,'') = '',gsog.`SPEC_NAME`,gsod.`SPEC_NAME`) `specName`,
+		IF(IFNULL(od.`GOODS_NUMS`,0) = 0,og.`GOODS_NUMS`,od.`GOODS_NUMS`) `goodsNum`,
+		IF(IFNULL(gsod.`GOODS_PRICE`,0) = 0,gsog.`GOODS_PRICE`,gsod.`GOODS_PRICE`) `goodsPrice`,
+		o.`ORDER_DESC` `orderDesc`,
+		oa.`FREIGHT` `freight`,
+		oa.`NAME` `name`,
+	  	oa.`MOBILE_NO` `mobileNo`,
+		CONCAT(a0.`NAME`,a1.`NAME`,a2.`NAME`,oa.`DETAIL_ADDRESS`) `addressDetail`
+		from t_evm_order o  
+		LEFT JOIN t_evm_order_address oa on oa.`ORDER_ID` = o.`ID` 
+		left join t_evm_area a0 on a0.`ID` = oa.`PROVINCE`
+		left join t_evm_area a1 on a1.`ID` = oa.`CITY`
+		left join t_evm_area a2 on a2.`ID` = oa.`AREA`
+		LEFT JOIN t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+		LEFT JOIN t_evm_order_detail od ON od.`ORDER_ID` = o.`ID` 
+		LEFT JOIN t_evm_goods god on god.`ID` = od.`GOODS_ID`
+		LEFT JOIN t_evm_goods_spec gsod on gsod.`ID` = od.`SPEC_ID`
+		LEFT JOIN t_evm_order_gift og ON og.`ORDER_ID` = o.`ID` 
+		LEFT JOIN t_evm_goods_spec gsog on gsog.`ID` = og.`GOODS_ID`
+		LEFT JOIN t_evm_goods gog on gog.`ID` = gsog.`GOODS_ID`
+		LEFT JOIN t_evm_store s ON o.store_id = s.id
+	    LEFT JOIN t_evm_wx_user u ON u.open_id = o.open_id	
+	    LEFT JOIN t_evm_wx_user u2 ON u2.open_id = o.WRITE_OFF_OPEN_ID
+		where o.`IS_DEL` = 0 
+		<if test="orderNo != null and orderNo != ''">
+			and (u.NICK_NAME like CONCAT('%',#{orderNo},'%')
+			or o.ORDER_NO like CONCAT('%',#{orderNo},'%')
+			or u2.nick_name like CONCAT('%',#{orderNo},'%')
+			or s.store_name like CONCAT('%',#{orderNo},'%')
+			)
+		</if>
+		<if test="id !=null ">
+			and o.`ID` = #{id}
+		</if>
+		<if test="status !=null ">
+			and o.`status` = #{status}
+		</if>
+		<if test="takeStyle !=null ">
+			and o.`take_style` = #{takeStyle}
+		</if>
+		<if test="startDate !=null and startDate != ''">
+			and o.`CREATED_TIME` &gt;= #{startDate}
+		</if>
+		<if test="endDate !=null and endDate != ''">
+			and o.`CREATED_TIME` &lt; #{endDate}
+		</if>
+		GROUP BY `orderNo`,`goodsCode`,`isGift`,`specName`,`goodsNum`
+		order by o.`CREATED_TIME` desc 
+	</select>
+	<!-- 查询订单详情 -->
+	<select id="queryOrderDetail" resultMap="orderList" parameterType="ExportDto">
+		select 
+		o.`ID` `id`,
+		o.`STORE_ID` `storeId`,
+		o.`ORDER_NO` `orderNo`,
+		u.`USER_NAME` `userName`,
+		DATE_FORMAT(o.`LAST_MODIFIED_TIME`,'%Y-%m-%d') `createTime`,
+		DATE_FORMAT(o.`LAST_MODIFIED_TIME`,'%Y-%m-%d') `LastModifiedTime`,
+		o.`TOTAL_BALANCES` `totalBalances`,
+		o.`STATUS` `status`,
+		IF(o.`STATUS` = 0,'待付款',IF(o.`STATUS` = 1,'待发货',IF(o.`STATUS` = 2,'待取货',IF(o.`STATUS` = 3,'待退款',IF(o.`STATUS` = 4,'已退款',IF(o.`STATUS` = 5,'订单取消',IF(o.`STATUS` = 6,'订单完成',IF(o.`STATUS` = 7,'退货待审核',IF(o.`STATUS` = 8,'退货待收货',''))))))))) `orderStatus`,
+		o.`ORDER_DESC` `orderDesc`,
+		CASE o.`ORDER_TYPE` WHEN 0 THEN '普通订单' WHEN 1 THEN '秒杀订单' WHEN 2 THEN '拼团订单' WHEN 3 THEN '特价订单' WHEN 5 THEN '砍价订单' WHEN 6 THEN '满减订单' WHEN 7 THEN '满赠订单' WHEN 8 THEN '打折订单'  ELSE '其他' END `note`
+		from t_evm_order o  
+		LEFT JOIN t_evm_store s ON o.store_id = s.id
+        LEFT JOIN t_evm_wx_user u ON u.open_id = o.open_id	
+        LEFT JOIN t_evm_wx_user u2 ON u2.open_id = o.WRITE_OFF_OPEN_ID
+		where o.`IS_DEL` = 0 
+		<if test="orderNo != null and orderNo != ''">
+			and (u.NICK_NAME like CONCAT('%',#{orderNo},'%')
+			or o.ORDER_NO like CONCAT('%',#{orderNo},'%')
+			or u2.nick_name like CONCAT('%',#{orderNo},'%')
+			or s.store_name like CONCAT('%',#{orderNo},'%')
+			)
+		</if>
+		<if test="id !=null ">
+			and o.`ID` = #{id}
+		</if>
+		<if test="status !=null ">
+			and o.`status` = #{status}
+		</if>
+		<if test="takeStyle !=null ">
+			and o.`take_style` = #{takeStyle}
+		</if>
+		<if test="startDate !=null and startDate != ''">
+			and o.`CREATED_TIME` &gt;= #{startDate}
+		</if>
+		<if test="endDate !=null and endDate != ''">
+			and o.`CREATED_TIME` &lt; #{endDate}
+		</if>
+		order by o.`CREATED_TIME` desc 
+	</select>
+	<update id="updateOrderStatus" parameterType="String">
+		update t_evm_order set `STATUS` = 2 where `ORDER_NO` = #{orderNo} and `STATUS` = 1
+	</update>
+	<update id="updateOrderExpressNo" parameterType="String">
+		update t_evm_order_address set `EXPRESS_NO` = #{expressNo} , `NOTE` = #{expressName}
+		where `ORDER_ID` = (select o.`ID` from t_evm_order o where o.`ORDER_NO` = #{orderNo} and o.`STATUS` = 1)
+	</update>
+	
+	<!-- 修改积分明细状态 -->
+	<update id="updateIntegralLogStatus" parameterType="Integer">
+		update t_evm_wx_user_integral_log set `STATUS` = #{status} where `STATUS` = 0 and `ID` = #{id} 
+	</update>
+	<!-- 积分失效 -->
+	<update id="updateUserIntegralFail" parameterType="WxUserInfo">
+		update t_evm_wx_user set 
+		`INTEGRAL` = `INTEGRAL` - #{integral},
+		`FAIL_INTEGRAL` = `FAIL_INTEGRAL` + #{integral},
+		`LAST_MODIFIED_TIME` = NOW()
+		where `OPEN_ID` = #{openId} 
+	</update>
+	
+	
+	
+	<!-- 订单查询导出 -->
+	<select id="downLoadQueryCoupon" resultType="java.util.Map" parameterType="Coupon">
+		select 
+		uc.`ID` `id`,
+		u.`NICK_NAME` `nickName`,
+		u.`USER_NAME` `userName`,
+		u.`MOBILE_NO` `mobileNo`,
+		IF(ifnull(u.`MOBILE_NO`,'') != '','会员',IF(u.`IS_AUTH` = 1,'粉丝','普通用户')) `userType`,
+		IF((select count(o1.`ID`) from t_evm_order o1 where o1.`OPEN_ID` = uc.`OPEN_ID` ) &lt;= 0,'新客户','老客户') `newOld`,
+		s.`STORE_NAME` `storeName`,
+		DATE_FORMAT(uc.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `issueTime`,
+		CASE uc.`SOURCE_TYPE` 
+		WHEN 0 THEN '日常领券' 
+		WHEN 1 THEN '砍价获得' 
+		WHEN 2 THEN '扫码领券' 
+		WHEN 3 THEN '券链接获得' 
+		WHEN 4 THEN '新用户注册' 
+		WHEN 5 THEN '人工发放' 
+		WHEN 6 THEN '首页领取' 
+		END `source`,
+		c.`TITLE` `title`,
+		IF(c.`COUPON_TYPE` = 0,c.`MONEY`,CONCAT(c.`MONEY`*10,'折')) `moneyName`,
+		c.`FULL_MONEY` `fullMoney`,
+		uc.`COUPON_NO` `couponNo`,
+		CASE c.`STATUS` 
+		WHEN 0 THEN '正常' 
+		WHEN 1 THEN '禁用' 
+		END `couponStatus`,
+		DATE_FORMAT(c.`START_TIME`,'%Y-%m-%d %H:%i:%s')  `startTime`,
+        DATE_FORMAT(c.`END_TIME`,'%Y-%m-%d %H:%i:%s') `endTime`,
+		CASE uc.`STATUS` 
+		WHEN 0 THEN '未使用' 
+		WHEN 1 THEN '已使用' 
+		WHEN 2 THEN '已过期' 
+		END `statusName`,
+		DATE_FORMAT(o.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `createdTime`,
+		IF(o.`STORE_ID` = 0,'小程序',s1.`STORE_NAME`) `useStoreName`,
+		o.`ORDER_NO` `orderNo` 
+		from t_evm_wx_user_coupon uc
+		left join t_evm_coupon c on c.`ID` = uc.`COUPON_ID` 
+		left join t_evm_wx_user u on u.`OPEN_ID` = uc.`OPEN_ID` 
+		left join t_evm_store s on s.`ID` = u.`STORE_ID` 
+		left join t_evm_order o on o.`COUPON_ID` = uc.`ID`
+		left join t_evm_store s1 on s1.`ID` = o.`STORE_ID`
+		where uc.`IS_DEL` = 0 
+		<if test="id">
+			and uc.`COUPON_ID` = #{id}
+		</if>
+		<if test="sourceId != null">
+			and uc.`SOURCE_ID` = #{sourceId} and `SOURCE_TYPE` = #{sourceType}
+		</if>
+		<if test="title != null and title != ''">
+			and (u.`NICK_NAME` like CONCAT('%',#{title},'%')
+				or u.`USER_NAME` like CONCAT('%',#{title},'%')
+				or u.`MOBILE_NO` like CONCAT('%',#{title},'%')
+			)
+		</if>
+		<if test="type != null">
+        	and uc.`SOURCE_TYPE` = #{type}
+        </if>
+        <if test="storeId != null">
+        	and u.`STORE_ID` = #{storeId}
+        </if>
+        <if test="createdTime != null and createdTime != ''">
+        	and uc.`CREATED_TIME` like CONCAT('%',#{createdTime},'%')
+        </if>
+        <if test="couponName != null and couponName != ''">
+        	and c.`TITLE` like CONCAT('%',#{couponName},'%')
+        </if>
+        <if test="couponNo != null and couponNo != ''">
+        	and c.`COUPON_NO` like CONCAT('%',#{couponNo},'%')
+        </if>
+        order by uc.`CREATED_TIME` desc    
+	</select>
+	<!-- 优惠券人工发放导出 -->
+	<select id="downLoadUserIssueCoupon" resultType="java.util.Map" parameterType="UserIssueCoupon">
+		select 
+		uic.`ID` `id`,
+		u.`NICK_NAME` `nickName`,
+		u.`USER_NAME` `userName`,
+		u.`MOBILE_NO` `mobileNo`,
+		IF(ifnull(u.`MOBILE_NO`,'') != '','会员',IF(u.`IS_AUTH` = 1,'粉丝','普通用户')) `userType`,
+		IF((select count(o1.`ID`) from t_evm_order o1 where o1.`OPEN_ID` = uic.`OPEN_ID` ) &lt;= 0,'新客户','老客户') `newOld`,
+		s.`STORE_NAME` `storeName`,
+		c.`TITLE` `title`,
+		uic.`SUCCESS_NUM` `successNum`,
+		uic.`ERROR_NUM` `errorNum`,
+		uic.`USER_NUM` `userNum`,
+		DATE_FORMAT(uic.`CREATED_TIME`,'%Y-%m-%d %H:%i:%s') `createdTime`,
+		uu.`NAME` `name`
+		from t_evm_user_issue_coupon uic
+		left join t_evm_coupon c on c.`ID` = uic.`COUPON_ID` 
+		left join t_evm_wx_user u on u.`OPEN_ID` = uic.`OPEN_ID` 
+		left join t_evm_store s on s.`ID` = u.`STORE_ID` 
+		left join t_evm_user uu on uu.`ID` = uic.`USER_ID` 
+		where uic.`IS_DEL` = 0 
+		<if test="title !=null and title !=''">
+        	and (c.`TITLE` like CONCAT('%',#{title},'%')
+        	or u.`USER_NAME` like CONCAT('%',#{title},'%')
+        	or u.`NICK_NAME` like CONCAT('%',#{title},'%'))
+        </if>
+        <if test="type != null and type == 0">
+        	and uic.`SUCCESS_NUM` &gt; 0
+        </if>
+        <if test="type != null and type == 1">
+        	and uic.`ERROR_NUM` &gt; 0
+        </if>
+        <if test="createdTime != null">
+        	and uic.`CREATED_TIME` like CONCAT('%',#{createdTime},'%')
+        </if>
+		ORDER BY uic.`CREATED_TIME` DESC  
+	</select>
+</mapper>

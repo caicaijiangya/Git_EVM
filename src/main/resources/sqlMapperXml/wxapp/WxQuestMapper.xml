@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.wxapp.mapper.WxQuestProblemMapper">
+	
+	<resultMap type="WxQuestProblem" id="questProblem">
+		<id column="id" property="id"/>
+		<result column="dimensionId" property="dimensionId"/>
+		<result column="title" property="title"/>
+		<result column="type" property="type"/>
+		<result column="seq" property="seq"/>
+		<result column="note" property="note"/>
+		<result column="createdTime" property="createdTime"/>
+		<collection property="details" column="id" ofType="WxQuestProblemDetail" javaType="ArrayList" select="queryQuestProblemDetail"/>
+	</resultMap>
+	<resultMap type="WxQuestResult" id="questResult">
+		<id column="id" property="id"/>
+		<result column="openId" property="openId"/>
+		<result column="userName" property="userName"/>
+		<result column="conclusionName" property="conclusionName"/>
+		<result column="score" property="score"/>
+		<result column="realScore" property="realScore"/>
+		<result column="createdTime" property="createdTime"/>
+		<result column="key" property="key"/>
+		<collection property="details" column="id" ofType="WxQuestResultDetail" javaType="ArrayList" select="queryQuestResultDetail"/>
+	</resultMap>
+	<!-- 查询所有维度 -->
+   <select id="queryQuestDimensionList" resultType="WxQuestDimension" parameterType="PagingDto">
+      select 
+		qd.`ID` `id`,
+		qd.`CLASSIFY_ID` `classifyId`,
+		qd.`KEY` `key`,
+		qd.`NAME` `name`
+		from t_evm_quest_dimension qd 
+		where qd.`IS_DEL` = 0 
+		ORDER BY qd.`KEY` ASC
+   </select>
+   <!-- 查询当前题目 -->
+   <select id="queryQuestProblemList" resultMap="questProblem" parameterType="PagingDto">
+      select 
+		qp.`ID` `id`,
+		qp.`DIMENSION_ID` `dimensionId`,
+		qp.`TITLE` `title`,
+		qp.`TYPE` `type`,
+		qp.`SEQ` `seq`,
+		qp.`CREATED_TIME` `createdTime` ,
+		qd.`KEY` `note`
+		from t_evm_quest_problem qp 
+		left join t_evm_quest_dimension qd on qd.`ID` = qp.`DIMENSION_ID` 
+		where qp.`IS_DEL` = 0 
+		ORDER BY qp.`SEQ` ASC
+   </select>
+   <!-- 查询当前题目详情 -->
+   <select id="queryQuestProblemDetail" resultType="WxQuestProblemDetail" parameterType="Integer">
+      select 
+		qpd.`ID` `id`,
+		qpd.`TITLE` `title`,
+		qpd.`SCORE` `score`,
+		qpd.`SEQ` `seq`,
+		qpd.`CREATED_TIME` `createdTime` 
+		from t_evm_quest_problem_detail qpd 
+		where qpd.`IS_DEL` = 0 AND qpd.`PROBLEM_ID` = #{id} 
+		ORDER BY qpd.`SEQ` ASC 
+   </select>
+   <!-- 查询满分分数 -->
+   <select id="queryQuestProblemSum" resultType="Integer">
+	   	select SUM((select qpd.`SCORE` from t_evm_quest_problem_detail qpd where qpd.`PROBLEM_ID` = qp.`ID` ORDER BY qpd.`SCORE` ASC limit 1))
+	from t_evm_quest_problem qp 
+	where qp.`IS_DEL` = 0 and qp.`TYPE` = 0 
+   </select>
+   <!-- 查询测试结果 -->
+   <select id="queryQuestResultList" resultType="WxQuestResult" parameterType="PagingDto">
+		SELECT ss.* FROM (
+			SELECT tt.*, @rownum:=@rownum+1 AS rid FROM ( 
+		        select 
+		      	qr.`ID` `id`,
+				qr.`OPEN_ID` `openId`,
+				qr.`SCORE` `score`,
+				qr.`REAL_SCORE` `realScore`,
+				date_format(qr.`CREATED_TIME`,'%Y年%m月%d日 %H:%i') `createdTime`
+				from t_evm_quest_result qr 
+				where qr.`IS_DEL` = 0 AND  qr.`OPEN_ID` = #{openId} 
+    		) tt, (select @rownum:=0) r
+		) ss
+		<if test="minId!=null and minId!=0"><![CDATA[WHERE ss.rid > #{minId}]]></if>		
+		<if test="pageSize!=null and pageSize!=0"><![CDATA[ limit 0,#{pageSize}  ]]></if>
+   </select>
+   <!-- 查询测试结果 -->
+   <select id="queryQuestResultObj" resultMap="questResult" parameterType="Integer">
+      select 
+      	qr.`ID` `id`,
+		qr.`OPEN_ID` `openId`,
+		u.`USER_NAME` `userName`,
+		qc.`KEY` `key`,
+		qc.`NAME` `conclusionName`,
+		qr.`SCORE` `score`,
+		qr.`REAL_SCORE` `realScore`,
+		qr.`CREATED_TIME` `createdTime` 
+		from t_evm_quest_result qr 
+		left join  t_evm_quest_conclusion qc on qc.`ID` = qr.`CONCLUSION_ID` 
+		left join t_evm_wx_user u on u.`OPEN_ID` = qr.`OPEN_ID` 
+		where qr.`IS_DEL` = 0 AND  qr.`ID` = #{id} 
+		order by qr.`CREATED_TIME` DESC
+   </select>
+   <!-- 查询测试结果详情 -->
+   <select id="queryQuestResultDetail" resultType="WxQuestResultDetail" parameterType="Integer">
+      select  
+		qd.`NAME` `dimensionName`,
+		(SUM(qrd.`SCORE`)/COUNT(qrd.`ID`))*2 `score`  
+		from t_evm_quest_result_detail qrd 
+		left join t_evm_quest_dimension qd on qd.`ID` = qrd.`DIMENSION_ID` 
+		left join t_evm_quest_problem qp ON qp.`ID` = qrd.`PROBLEM_ID` 
+		where qrd.`IS_DEL` = 0 
+		AND qp.`TYPE` = 0 
+		AND qrd.`RESULT_ID` = #{id} 
+		GROUP BY qrd.DIMENSION_ID 
+		ORDER BY qd.`KEY` ASC 
+   </select>
+   
+   <!-- 查询商品列表 -->
+   <select id="queryGoodsList" resultType="WxKeeperGoods" parameterType="String">
+      select DISTINCT 
+		g.`ID` `id`,
+		gs.`SPEC_ID` `specId`,
+		g.`GOODS_NAME` `goodsName`,
+		g.`GOODS_DESC` `goodsDesc`,
+		gs.`GOODS_PRICE` `goodsPrice`,
+		sf.`FILE_PATH` `goodsImage`
+		from t_evm_goods g 
+		left join (select MIN(IF(IFNULL(gs.`MARKET_PRICE`,0) &gt; 0,gs.`MARKET_PRICE`,gs.`GOODS_PRICE`)) `GOODS_PRICE`,gs.`ID` `SPEC_ID`,gs.`GOODS_ID` from t_evm_goods_spec gs where gs.`IS_DEL` = 0  GROUP BY gs.`GOODS_ID`) gs on gs.`GOODS_ID` = g.`ID`
+		left join t_evm_static_files sf on sf.`RELATION_ID` = g.`ID` AND sf.`IS_DEL` = 0 AND sf.`FILE_TYPE` = 0 AND sf.`BIG_TYPE` = 0 and sf.SMALL_TYPE = 0 
+		where g.`IS_DEL` = 0 
+		AND g.`ID` in 
+		<foreach collection="ids" open="(" close=")" separator="," item="id">
+         #{id}
+      </foreach>
+		ORDER BY g.`ID` ASC 
+   </select>
+   
+   
+   <!-- 查询推荐商品 -->
+   <select id="queryQuestGoodsList" resultType="WxKeeperGoods" parameterType="PagingDto">
+      select 
+		qg.`CLASSIFY_ID`,
+		qg.`GOODS_ID` `id`,
+		g.`GOODS_NAME` `goodsName`,
+		g.`GOODS_DESC` `goodsDesc`,
+		g.`BRAND_ID` `brandId`,
+		sf.`FILE_PATH` `goodsImage` 
+		from t_evm_quest_goods qg 
+		<if test="code != null or items != null">
+			left join t_evm_quest_dimension qd on qd.`CLASSIFY_ID` = qg.`CLASSIFY_ID`
+		</if>
+		left join t_evm_goods g on g.`ID` = qg.`GOODS_ID` 
+		left join t_evm_static_files sf on sf.`RELATION_ID` = g.`ID` AND sf.`IS_DEL` = 0 AND sf.`FILE_TYPE` = 0 AND sf.`BIG_TYPE` = 0 and sf.SMALL_TYPE = 0
+		where qg.`IS_DEL` = 0 
+		<if test="type != null">
+			AND  qg.`NAIL` = #{type} 
+		</if>
+		<if test="code != null">
+			AND  qd.`KEY` = #{code} 
+		</if>
+		<if test="items != null">
+			AND qd.`KEY` IN 
+			<foreach collection="items" open="(" close=")" separator="," item="key">
+	         #{key}
+	      	</foreach>
+		</if>
+		<if test="brandId != null">
+			AND  g.`BRAND_ID` = #{brandId} 
+		</if>
+		ORDER BY qg.`SEQ` ASC 
+		LIMIT 1 
+   </select>
+   
+   <select id="queryQuestResultCount" resultType="Integer" parameterType="String">
+      select count(*) from t_evm_quest_result qr 
+		left join t_evm_quest_conclusion qc on qc.`ID` = qr.`CONCLUSION_ID` 
+		where qr.`IS_DEL` = 0 
+		AND qr.`OPEN_ID` = #{openId} 
+		AND  qc.`KEY` like concat(concat('%',#{key}),'%')
+   </select>
+   
+   <!-- 查询评测结果 -->
+   <select id="queryQuestConclusionByKey" resultType="Integer" parameterType="String">
+      select qc.`ID` from t_evm_quest_conclusion qc where qc.`KEY` IN 
+      <foreach collection="keys" open="(" close=")" separator="," item="key">
+         #{key}
+      </foreach>
+      LIMIT 1
+   </select>
+   <select id="queryQuestConclusionByKey1" resultType="Integer" parameterType="String">
+      select qc.`ID` from t_evm_quest_conclusion qc where qc.`KEY` like concat(concat('%',#{key}),'%')
+      LIMIT 1
+   </select>
+   <!-- 新增测试结果 -->
+   <insert id="insertQuestResult" parameterType="WxQuestResult" useGeneratedKeys="true" keyProperty="id">
+   	 insert into t_evm_quest_result 
+   	 (`OPEN_ID`,`CONCLUSION_ID`,`SCORE`,`REAL_SCORE`)
+   	 values 
+   	 (#{openId},#{conclusionId},#{score},#{realScore})
+   </insert>
+   <!-- 新增测试结果明细 -->
+   <insert id="insertQuestResultDetail" parameterType="WxQuestResultDetail" useGeneratedKeys="true" keyProperty="id">
+   	 insert into t_evm_quest_result_detail 
+   	 (`RESULT_ID`,`DIMENSION_ID`,`PROBLEM_ID`,`SCORE`)
+   	 values 
+   	 (#{resultId},#{dimensionId},#{problemId},#{score})
+   </insert>
+   
+   
+   
+   
+   
+   <!-- 查询问卷测试报告-曲线图数据 -->
+   <select id="queryCurveData" resultType="WxQuestResult" parameterType="PagingDto">
+   	SELECT temp.`REAL_SCORE` `realScore`,temp.`nums` `score` from (
+		select 
+		qr.`REAL_SCORE`,
+		CASE
+			WHEN qr.`CREATED_TIME` BETWEEN date_sub(NOW(), interval 7 day) and NOW() THEN 5
+			WHEN qr.`CREATED_TIME` BETWEEN date_sub(NOW(), interval 14 day) and date_sub(NOW(), interval 7 day) THEN 4
+			WHEN qr.`CREATED_TIME` BETWEEN date_sub(NOW(), interval 21 day) and date_sub(NOW(), interval 14 day) THEN 3
+			WHEN qr.`CREATED_TIME` BETWEEN date_sub(NOW(), interval 28 day) and date_sub(NOW(), interval 21 day) THEN 2
+			WHEN qr.`CREATED_TIME` BETWEEN date_sub(NOW(), interval 35 day) and date_sub(NOW(), interval 28 day) THEN 1
+		END as nums 
+		from t_evm_quest_result qr
+		left join t_evm_quest_conclusion qc on qc.`ID` = qr.`CONCLUSION_ID`
+		where qr.`IS_DEL` = 0 
+		and qr.`OPEN_ID` = #{openId} 
+		and qr.`CREATED_TIME` BETWEEN date_sub(NOW(), interval 40 day) and NOW()
+		<if test="code != null and code != ''">
+			and qc.`KEY` like CONCAT('%',#{code},'%') 
+		</if>
+		GROUP BY qr.`REAL_SCORE`
+		ORDER BY nums,qr.`REAL_SCORE` DESC 
+	) temp 
+	GROUP BY temp.nums 
+	ORDER BY temp.nums DESC 
+   </select>
+
+	<!-- new 通过问题ID查询本题具体选项和名称 -->
+	<select id="queryQuestDetailByProblemId" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDetailDto" parameterType="java.lang.Integer">
+		SELECT
+		qp.seq page,
+		qpd.title as name,
+		qpd.seq as value
+		FROM
+		t_evm_quest_problem_detail qpd
+		LEFT JOIN t_evm_quest_problem qp ON qp.id = qpd.problem_id
+		WHERE
+		qp.seq = #{problemId} and qp.is_del = '0'
+	</select>
+	<!-- new 空的问卷题目和具体选项和名称 -->
+	<select id="queryQuestDetail" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDetailDto">
+		SELECT
+		qp.seq page,
+		qpd.title as name,
+		qpd.seq as value
+		FROM
+		t_evm_quest_problem_detail qpd
+		LEFT JOIN t_evm_quest_problem qp ON qp.id = qpd.problem_id
+		WHERE  qp.is_del = '0'
+	</select>
+	<!-- new 查询题目名称 -->
+	<select id="queryQuestName" resultType="java.lang.String" parameterType="java.lang.Integer">
+		SELECT
+		qp.title
+		FROM
+		t_evm_quest_problem qp
+		WHERE
+		qp.seq = #{seq} and qp.is_del = '0'
+	</select>
+
+
+
+
+
+	<!-- new 通过openID查询测试的题目题号和选择的那一项 -->
+	<select id="queryQuestResultAndScore" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDto" parameterType="PagingDto">
+		SELECT DISTINCT
+		qr.open_id,
+		qr.id testId,
+		qp.seq-1 as page,
+		qrd.score,
+		qp.title as name,
+		qp.sort,
+		qp.icon,
+    	qp.name,
+    	qp.comment AS title
+		FROM
+		t_evm_quest_result_detail qrd
+		LEFT JOIN t_evm_quest_result qr ON qr.ID = qrd.result_id
+		LEFT JOIN t_evm_quest_problem_detail qpd ON qpd.PROBLEM_ID = qrd.problem_id
+		LEFT JOIN t_evm_quest_problem qp ON qp.ID = qpd.PROBLEM_ID
+		WHERE
+		qp.is_del = '0'
+		AND qr.ID = (
+		SELECT
+		ID
+		FROM
+		t_evm_quest_result
+		WHERE
+		SCORE IS NOT NULL
+		ORDER BY
+		CREATED_TIME DESC
+		LIMIT 1
+		)
+		ORDER BY
+		qr.created_time DESC
+	</select>
+	<!-- new 通过openID查询测试的题目题号和选择的那一项 -->
+	<select id="queryQuestResultAndScore1" resultType="com.bluekjg.wxapp.model.wxApp20.WxQuestionDto" parameterType="PagingDto">
+		SELECT DISTINCT
+		qr.open_id,
+		qr.id testId,
+		qp.seq-1 as page,
+		qrd.score,
+		qp.title as name,
+		qp.sort,
+		qp.icon,
+		qp.name,
+		qp.comment AS title,
+		qrd.value
+		FROM
+		t_evm_quest_result_detail qrd
+		LEFT JOIN t_evm_quest_result qr ON qr.ID = qrd.result_id
+		LEFT JOIN t_evm_quest_problem_detail qpd ON qpd.PROBLEM_ID = qrd.problem_id
+		LEFT JOIN t_evm_quest_problem qp ON qp.ID = qpd.PROBLEM_ID
+		WHERE
+		qp.is_del = '0' AND qr.OPEN_ID = #{openId}
+		AND qr.ID = (
+		SELECT
+		ID
+		FROM
+		t_evm_quest_result
+		WHERE OPEN_ID = #{openId}
+
+		ORDER BY
+		CREATED_TIME DESC
+		LIMIT 1
+		)
+		ORDER BY
+		qr.created_time DESC
+	</select>
+
+	<!-- new 通过openID查询历史测试数量 -->
+	<select id="queryCountByOpenId" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT
+		count(*)
+		FROM
+		t_evm_quest_result
+		WHERE
+		open_id = #{openId}
+	</select>
+
+	<!-- 新增一条空的结果（点击开始测试） -->
+	<insert id="insertANullResult" parameterType="PagingDto" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_quest_result
+		(`OPEN_ID`)
+		values
+		(#{openId})
+	</insert>
+	<!-- new 通过openID查询测试结果Id -->
+	<select id="queryTestIdByOpenId" resultType="java.lang.Integer" parameterType="PagingDto">
+		SELECT
+		id as quest_id
+		FROM
+		t_evm_quest_result
+		WHERE
+		open_id = #{openId}
+		ORDER BY CREATED_TIME DESC
+		LIMIT 1
+	</select>
+
+	<!-- 新增测试结果 -->
+	<insert id="insertQueseResultNew" parameterType="WxQuestResult" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_quest_result
+		(`OPEN_ID`,`CONCLUSION_ID`,`SCORE`,`REAL_SCORE`)
+		values
+		(#{openId},#{conclusionId},#{score},#{realScore})
+	</insert>
+	<!-- 新增测试结果明细 -->
+	<insert id="insertQuestResultDetailNew" parameterType="WxQuestResultDetail" useGeneratedKeys="true" keyProperty="id">
+		insert into t_evm_quest_result_detail
+		(`RESULT_ID`,`PROBLEM_ID`,`SCORE`,`VALUE`)
+		values
+		(#{quest_id},#{problemId},#{score},#{value})
+	</insert>
+	<update id="updateQuestResultDetail" parameterType="WxQuestResultDetail">
+		update t_evm_quest_result_detail
+		set `SCORE` = #{score},`VALUE` = #{value}
+		where `PROBLEM_ID` = #{problemId}
+		and `RESULT_ID` = #{quest_id}
+	</update>
+	<!--查询是否做过这道题-->
+	<select id="queryOptionCount" resultType="java.lang.Integer" parameterType="WxQuestResultDetail">
+		SELECT
+		  COUNT(*)
+		FROM
+			t_evm_quest_result_detail
+		WHERE
+			result_id = #{quest_id}
+		AND problem_id = #{problemId}
+		AND is_del = '0'
+	</select>
+	<!-- 通过结论名字查询结论ID -->
+	<select id="queryConclusionId" resultType="java.lang.Integer" parameterType="java.lang.String">
+		SELECT
+			id
+		FROM
+			t_evm_quest_conclusion
+		WHERE
+			KEY = #{conclusionName}
+	</select>
+	<!-- 问卷自测结果 -->
+	<select id="queryLastResult" resultType="com.bluekjg.wxapp.model.wxApp20.LastResult" parameterType="PagingDto">
+		SELECT
+			qd. NAME,
+			qrd.score
+		FROM
+			t_evm_quest_dimension qd
+		LEFT JOIN t_evm_quest_result_detail qrd ON qrd.dimension_id = qd.id
+		LEFT JOIN t_evm_quest_result qr ON qr.id = qrd.result_id
+		WHERE
+			qrd.is_del = '0'
+		AND qr.open_id = #{openId}
+
+	</select>
+
+
+
+
+
+
+
+
+</mapper>

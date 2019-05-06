@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bluekjg.admin.mapper.ActivityPromoteMapper">
+	<!-- 优惠券 -->
+	<select id="selectCouponDataGrid" resultType="java.util.Map" parameterType="ActivityPromoteDto">
+		SELECT
+		c.`TITLE` `title`,
+		IF(c.`COUPON_TYPE` = 0,c.`MONEY`,CONCAT(c.`MONEY`*10,'折')) `money`,
+		IF(c.`TYPE` = 0,c.`USER_NUM`,ca.`USER_NUM`) `userNum`,
+		c.`DUE_TIME` `dueTime`,
+		CONCAT(IFNULL(cu2.`RECEIVE_USER_NUM`,0),' / ',IFNULL(cu1.`RECEIVE_NUM`,0)) `receiveNum`,
+		IFNULL(cu3.`USE_NUM`,0) `useNum`,
+		CONCAT(
+			IF(IF(c.`TYPE` = 0,c.`IS_COUPON_NUM`,ca.`IS_COUPON_NUM`) = 0,'100%',CONCAT(ROUND((IFNULL(cu1.`RECEIVE_NUM`,0) / (IFNULL(cu1.`RECEIVE_NUM`,0) + IF(c.`TYPE` = 0,IFNULL(c.`COUPON_NUM`,0),IFNULL(ca.`COUPON_NUM`,0)))) * 100,2),'%')),
+			' / ',
+			CONCAT(ROUND((IFNULL(cu3.`USE_NUM`,0) / IFNULL(cu1.`RECEIVE_NUM`,0)) * 100,2),'%')
+		) `receiveRate`,
+		IFNULL(co1.`NEW_USER_NUM`,0) `newUserNum`,
+		IFNULL(co2.`OLD_USER_NUM`,0) `oldUserNum`,
+		IFNULL(co3.`GOODS_NUMS`,0) `goodsNum`,
+		IFNULL(co4.`BALANCES`,0) `totleBalances`,
+		ROUND(IFNULL(co4.`BALANCES`,0) / IFNULL(co4.`ORDER_NUM`,0),2) `singlePrice`
+		FROM t_evm_coupon c 
+		LEFT JOIN t_evm_coupon_activity ca on ca.`COUPON_ID` = c.`ID`
+		LEFT JOIN  ( 
+			select COUNT(*) `RECEIVE_NUM`,uc.`COUPON_ID` from t_evm_wx_user_coupon uc where uc.`IS_DEL` = 0 GROUP BY uc.`COUPON_ID`
+		) cu1 on cu1.`COUPON_ID` = c.`ID` 
+		LEFT JOIN  ( 
+			SELECT COUNT(*) `RECEIVE_USER_NUM`,uc0.`COUPON_ID` from (select uc.`OPEN_ID`,uc.`COUPON_ID` from t_evm_wx_user_coupon uc where uc.`IS_DEL` = 0 GROUP BY uc.`OPEN_ID`,uc.`COUPON_ID`) uc0 GROUP BY uc0.`COUPON_ID`
+		) cu2 on cu2.`COUPON_ID` = c.`ID` 
+		LEFT JOIN  ( 
+			select COUNT(*) `USE_NUM`,uc.`COUPON_ID` from t_evm_wx_user_coupon uc where uc.`IS_DEL` = 0 and uc.`STATUS` = 1 GROUP BY uc.`COUPON_ID`
+		) cu3 on cu3.`COUPON_ID` = c.`ID` 
+		LEFT JOIN  (
+			SELECT COUNT(*) `NEW_USER_NUM`,o0.`COUPON_ID` from (
+				SELECT 
+				o.`OPEN_ID`,
+				o.`COUPON_ID`
+				from t_evm_order o 
+				left join (
+					select COUNT(*) `ORDER_NUM`,o1.`OPEN_ID` from t_evm_order o1 where o1.`IS_DEL` = 0 GROUP BY o1.`OPEN_ID`
+				) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+				where IFNULL(o2.`ORDER_NUM`,0) = 1 and o.`STATUS` = 6 
+				GROUP BY o.`COUPON_ID`,o.`OPEN_ID`
+			) o0 GROUP BY o0.`COUPON_ID`
+		) co1 on co1.`COUPON_ID` = c.`ID`
+		LEFT JOIN  (
+			SELECT COUNT(*) `OLD_USER_NUM`,o0.`COUPON_ID` from (
+				SELECT 
+				o.`OPEN_ID`,
+				o.`COUPON_ID`
+				from t_evm_order o 
+				left join (
+					select COUNT(*) `ORDER_NUM`,o1.`OPEN_ID` from t_evm_order o1 where o1.`IS_DEL` = 0 GROUP BY o1.`OPEN_ID`
+				) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+				where IFNULL(o2.`ORDER_NUM`,0) &gt; 1 and o.`STATUS` = 6 
+				GROUP BY o.`COUPON_ID`,o.`OPEN_ID`
+			) o0 GROUP BY o0.`COUPON_ID`
+		) co2 on co2.`COUPON_ID` = c.`ID`
+		LEFT JOIN (
+			select 
+			SUM(IFNULL(od.GOODS_NUMS,0)) `GOODS_NUMS`,
+			o.`COUPON_ID`
+			from t_evm_order o 
+			left join t_evm_order_detail od on od.`ORDER_ID` = o.`ID`
+			where o.`IS_DEL` = 0 and o.`STATUS` = 6 
+			GROUP BY o.`COUPON_ID`
+		) co3 on co3.`COUPON_ID` = c.`ID`
+		LEFT JOIN (
+			select 
+			SUM(IFNULL(ot.`BALANCES`,0)) `BALANCES`,
+			COUNT(o.`ID`) `ORDER_NUM`,
+			o.`COUPON_ID`
+			from t_evm_order o 
+			left join t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID`
+			where o.`IS_DEL` = 0 and o.`STATUS` = 6
+			GROUP BY o.`COUPON_ID`
+		) co4 on co4.`COUPON_ID` = c.`ID`
+		where c.`IS_DEL` = 0 and c.`STATUS` = 0 
+		<if test="title != null and title != ''">
+			and c.`TITLE` like CONCAT(CONCAT('%',#{title}),'%') 
+		</if>
+		<if test="startTime != null and startTime != '' and endTime != null and endTime != ''">
+			and (
+				(DATE_FORMAT(c.`START_TIME`, '%Y-%m-%d') &lt;= #{startTime} and DATE_FORMAT(c.`END_TIME`, '%Y-%m-%d') &gt;= #{startTime})
+				or 
+				(DATE_FORMAT(c.`START_TIME`, '%Y-%m-%d') &lt;= #{endTime} and DATE_FORMAT(c.`END_TIME`, '%Y-%m-%d') &gt;= #{endTime})
+				or
+				(DATE_FORMAT(c.`START_TIME`, '%Y-%m-%d') &gt; #{startTime} and DATE_FORMAT(c.`END_TIME`, '%Y-%m-%d') &lt; #{endTime})
+			)
+		</if>
+	</select>
+	
+	<!-- 活动 -->
+	<select id="selectActivityDataGrid" resultType="java.util.Map" parameterType="ActivityPromoteDto">
+		SELECT
+		a.`TITLE` `title`,
+		CONCAT(DATE_FORMAT(a.`ACTIVITY_START_TIME`, '%Y-%m-%d'),'-',DATE_FORMAT(a.`ACTIVITY_END_TIME`, '%Y-%m-%d')) `dateTime`,
+		CASE a.`STATUS` WHEN 0 THEN '待审核' WHEN 1 THEN '已开始' WHEN 2 THEN '已结束' END `status`,
+		IFNULL(aal1.`ACCESS_NUM`,0) `accessNum`,
+		IFNULL(aal2.`ACCESS_USER_NUM`,0) `accessUserNum`,
+		ROUND(IFNULL(aal1.`ACCESS_NUM`,0) / IFNULL(aal2.`ACCESS_USER_NUM`,0),2) `accessRate`,
+		IFNULL(aal3.`NEW_ACCESS_NUM`,0) `newAccessNum`,
+		IFNULL(aal4.`SHARE_NUM`,0) `shareNum`,
+		IFNULL(co1.`NEW_USER_NUM`,0) `newUserNum`,
+		IFNULL(co2.`OLD_USER_NUM`,0) `oldUserNum`,
+		IFNULL(co3.`ORDER_NUM`,0) `orderNum`,
+		IFNULL(co3.`TOTLE_BALANCES`,0) `totleBalances`,
+		IFNULL(co3.`DISCOUNT_PRICE`,0) `discoutPrice`,
+		ROUND(IFNULL(co3.`TOTLE_BALANCES`,0) / IFNULL(co3.`ORDER_NUM`,0),2) `unitPrice`,
+		IFNULL(cg1.`COLLAGE_NUM`,0) `collageNum`,
+		IFNULL(cg1.`COLLAGE_JOIN_NUM`,0) - IFNULL(cg1.`COLLAGE_NUM`,0) `collageJoinNum`,
+		IFNULL(cg2.`BARGAIN_NUM`,0) `bargainNum`,
+		IFNULL(cg2.`BARGAIN_JOIN_NUM`,0) `bargainJoinNum` 
+		from t_evm_activity a 
+		LEFT JOIN (
+			SELECT COUNT(*) `ACCESS_NUM`,aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE` from t_evm_activity_access_log aal where aal.`TYPE` = 0 GROUP BY aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE`
+		) aal1 on aal1.`ACTIVITY_ID` = a.`ID` and aal1.`ACTIVITY_TYPE` = a.`ACTIVITY_TYPE` 
+		LEFT JOIN (
+			SELECT COUNT(*) `ACCESS_USER_NUM`,aal0.`ACTIVITY_ID`,aal0.`ACTIVITY_TYPE` from (SELECT aal.OPEN_ID,aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE` from t_evm_activity_access_log aal where aal.`TYPE` = 0 GROUP BY aal.`OPEN_ID`,aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE`) aal0 GROUP BY aal0.`ACTIVITY_ID`,aal0.`ACTIVITY_TYPE`
+		) aal2 on aal2.`ACTIVITY_ID` = a.`ID` and aal2.`ACTIVITY_TYPE` = a.`ACTIVITY_TYPE` 
+		LEFT JOIN (
+			SELECT COUNT(*) `NEW_ACCESS_NUM`,aal0.`ACTIVITY_ID`,aal0.`ACTIVITY_TYPE` from (SELECT aal.OPEN_ID,aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE` from t_evm_activity_access_log aal where aal.`NEW_OLD` = 0 and aal.`TYPE` = 0 GROUP BY aal.`OPEN_ID`,aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE`) aal0 GROUP BY aal0.`ACTIVITY_ID`,aal0.`ACTIVITY_TYPE`
+		) aal3 on aal3.`ACTIVITY_ID` = a.`ID` and aal3.`ACTIVITY_TYPE` = a.`ACTIVITY_TYPE` 
+		LEFT JOIN (
+			SELECT COUNT(*) `SHARE_NUM`,aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE` from t_evm_activity_access_log aal where aal.`TYPE` = 1 GROUP BY aal.`ACTIVITY_ID`,aal.`ACTIVITY_TYPE`
+		) aal4 on aal4.`ACTIVITY_ID` = a.`ID` and aal4.`ACTIVITY_TYPE` = a.`ACTIVITY_TYPE` 
+		LEFT JOIN (
+			select COUNT(*) `COLLAGE_NUM`,SUM(cg.`JOIN_NUM`) `COLLAGE_JOIN_NUM`,cg.`ACTIVITY_ID` from t_evm_collage_goods cg where cg.`IS_DEL` = 0 GROUP BY cg.`ACTIVITY_ID` 
+		) cg1 on cg1.`ACTIVITY_ID` = a.`ID`
+		LEFT JOIN (
+			select COUNT(*) `BARGAIN_NUM`,SUM(bgd0.`DETAIL_NUM`) `BARGAIN_JOIN_NUM`,bg.`ACTIVITY_ID` 
+			from t_evm_bargain_goods bg 
+			left join (select COUNT(*) `DETAIL_NUM`,bgd.`BARGAIN_ID` from t_evm_bargain_goods_detail bgd where bgd.`IS_DEL` = 0 and bgd.`STATUS` = 1 and bgd.`IS_BARGAIN` = 1 GROUP BY bgd.`BARGAIN_ID`) bgd0 on bgd0.`BARGAIN_ID` = bg.`ID`
+			where bg.`IS_DEL` = 0 GROUP BY bg.`ACTIVITY_ID` 
+		) cg2 on cg2.`ACTIVITY_ID` = a.`ID`
+		<if test="type == 5">
+			LEFT JOIN  (
+				SELECT COUNT(*) `NEW_USER_NUM`,o0.`ACTIVITY_ID` from (
+					SELECT 
+					o.`OPEN_ID`,
+					IF(og.`ACTIVITY_ID` IS NULL,op.`ACTIVITY_ID`,og.`ACTIVITY_ID`) `ACTIVITY_ID` 
+					from t_evm_order o 
+					LEFT JOIN t_evm_order_gift og on og.`ORDER_ID` = o.`ID` 
+					LEFT JOIN t_evm_order_pre op on op.`ORDER_ID` = o.`ID`
+					left join (
+						select COUNT(*) `ORDER_NUM`,o1.`OPEN_ID` from t_evm_order o1 where o1.`IS_DEL` = 0 GROUP BY o1.`OPEN_ID`
+					) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+					where IFNULL(o2.`ORDER_NUM`,0) = 1 and o.`STATUS` = 6
+					GROUP BY o.`ACTIVITY_ID`,o.`OPEN_ID` 
+				) o0 GROUP BY o0.`ACTIVITY_ID` 
+			) co1 on co1.`ACTIVITY_ID` = a.`ID`
+			LEFT JOIN  (
+				SELECT COUNT(*) `OLD_USER_NUM`,o0.`ACTIVITY_ID` from (
+					SELECT 
+					o.`OPEN_ID`,
+					IF(og.`ACTIVITY_ID` IS NULL,op.`ACTIVITY_ID`,og.`ACTIVITY_ID`) `ACTIVITY_ID` 
+					from t_evm_order o 
+					LEFT JOIN t_evm_order_gift og on og.`ORDER_ID` = o.`ID` 
+					LEFT JOIN t_evm_order_pre op on op.`ORDER_ID` = o.`ID`
+					left join (
+						select COUNT(*) `ORDER_NUM`,o1.`OPEN_ID` from t_evm_order o1 where o1.`IS_DEL` = 0 GROUP BY o1.`OPEN_ID`
+					) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+					where IFNULL(o2.`ORDER_NUM`,0) &gt; 1 and o.`STATUS` = 6
+					GROUP BY o.`ACTIVITY_ID`,o.`OPEN_ID` 
+				) o0 GROUP BY o0.`ACTIVITY_ID` 
+			) co2 on co2.`ACTIVITY_ID` = a.`ID`
+			LEFT JOIN (
+				SELECT 
+				COUNT(*) `ORDER_NUM`,
+				SUM(IFNULL(ot.`BALANCES`,0)) `TOTLE_BALANCES`,
+				SUM(IFNULL(op.`PRICE`,0)) + SUM(IFNULL(o.DISCOUNT_PRICE,0)) `DISCOUNT_PRICE`,
+				IF(og.`ACTIVITY_ID` IS NULL,op.`ACTIVITY_ID`,og.`ACTIVITY_ID`) `ACTIVITY_ID` 
+				from t_evm_order o 
+				LEFT JOIN t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+				LEFT JOIN (select og1.`ORDER_ID`,og1.`ACTIVITY_ID` from t_evm_order_gift og1 GROUP BY og1.`ORDER_ID`,og1.`ACTIVITY_ID`) og on og.`ORDER_ID` = o.`ID` 
+				LEFT JOIN (select op1.`ORDER_ID`,op1.`ACTIVITY_ID`,SUM(IFNULL(op1.`PRICE`,0)) `PRICE` from t_evm_order_pre op1 GROUP BY op1.`ORDER_ID`,op1.`ACTIVITY_ID`) op on op.`ORDER_ID` = o.`ID`
+				where o.`STATUS` = 6 GROUP BY `ACTIVITY_ID`
+			) co3 on co3.`ACTIVITY_ID` = a.`ID` 
+		</if>
+		<if test="type != 5">
+			LEFT JOIN  (
+				SELECT COUNT(*) `NEW_USER_NUM`,o0.`ACTIVITY_ID` from (
+					SELECT 
+					o.`OPEN_ID`,
+					o.`ACTIVITY_ID`
+					from t_evm_order o 
+					left join (
+						select COUNT(*) `ORDER_NUM`,o1.`OPEN_ID` from t_evm_order o1 where o1.`IS_DEL` = 0 GROUP BY o1.`OPEN_ID`
+					) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+					where IFNULL(o2.`ORDER_NUM`,0) = 1 and o.`STATUS` = 6
+					GROUP BY o.`ACTIVITY_ID`,o.`OPEN_ID`
+				) o0 GROUP BY o0.`ACTIVITY_ID`
+			) co1 on co1.`ACTIVITY_ID` = a.`ID`
+			LEFT JOIN  (
+				SELECT COUNT(*) `OLD_USER_NUM`,o0.`ACTIVITY_ID` from (
+					SELECT 
+					o.`OPEN_ID`,
+					o.`ACTIVITY_ID`
+					from t_evm_order o 
+					left join (
+						select COUNT(*) `ORDER_NUM`,o1.`OPEN_ID` from t_evm_order o1 where o1.`IS_DEL` = 0 GROUP BY o1.`OPEN_ID`
+					) o2 on o2.`OPEN_ID` = o.`OPEN_ID` 
+					where IFNULL(o2.`ORDER_NUM`,0) &gt; 1 and o.`STATUS` = 6
+					GROUP BY o.`ACTIVITY_ID`,o.`OPEN_ID`
+				) o0 GROUP BY o0.`ACTIVITY_ID`
+			) co2 on co2.`ACTIVITY_ID` = a.`ID`
+			LEFT JOIN (
+				SELECT 
+				COUNT(*) `ORDER_NUM`,
+				SUM(IFNULL(ot.`BALANCES`,0)) `TOTLE_BALANCES`,
+				SUM(IFNULL(op.`PRICE`,0)) + SUM(IFNULL(o.DISCOUNT_PRICE,0)) `DISCOUNT_PRICE`,
+				o.`ACTIVITY_ID` 
+				from t_evm_order o 
+				LEFT JOIN t_evm_order_trans ot on ot.`ORDER_ID` = o.`ID` 
+				LEFT JOIN (select op1.`ORDER_ID`,SUM(IFNULL(op1.`PRICE`,0)) `PRICE` from t_evm_order_pre op1 GROUP BY op1.`ORDER_ID`) op on op.`ORDER_ID` = o.`ID`
+				where o.`STATUS` = 6 GROUP BY o.`ACTIVITY_ID`
+			) co3 on co3.`ACTIVITY_ID` = a.`ID` 
+		</if>
+		
+		where a.`IS_DEL` = 0 
+		<if test="type == 1">
+			and a.`ACTIVITY_TYPE` = 1
+		</if>
+		<if test="type == 2">
+			and a.`ACTIVITY_TYPE` = 2
+		</if>
+		<if test="type == 4">
+			and a.`ACTIVITY_TYPE` = 4
+		</if>
+		<if test="type == 5">
+			and a.`ACTIVITY_TYPE` in (5,6)
+		</if>
+		<if test="startTime != null and startTime != '' and endTime != null and endTime != ''">
+			and (
+				(DATE_FORMAT(a.`ACTIVITY_START_TIME`, '%Y-%m-%d') &lt;= #{startTime} and DATE_FORMAT(a.`ACTIVITY_END_TIME`, '%Y-%m-%d') &gt;= #{startTime})
+				or 
+				(DATE_FORMAT(a.`ACTIVITY_START_TIME`, '%Y-%m-%d') &lt;= #{endTime} and DATE_FORMAT(a.`ACTIVITY_END_TIME`, '%Y-%m-%d') &gt;= #{endTime})
+				or
+				(DATE_FORMAT(a.`ACTIVITY_START_TIME`, '%Y-%m-%d') &gt; #{startTime} and DATE_FORMAT(a.`ACTIVITY_END_TIME`, '%Y-%m-%d') &lt; #{endTime})
+			)
+		</if>
+	</select>
+</mapper>
